@@ -9,6 +9,9 @@ int main(int argc, char *argv[])
         Qt::AA_ShareOpenGLContexts
         );
 
+
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QGuiApplication app(argc, argv);
 
 
@@ -22,6 +25,7 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
+
     engine.loadFromModule("PhotoPoint", "Main");
 
     return app.exec();
