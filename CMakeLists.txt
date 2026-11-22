@@ -40,6 +40,7 @@ qt_add_qml_module(Q2PhotoPoint
             src/qml/pages/rotate.svg
             src/qml/pages/add.svg
             src/qml/pages/remove.svg
+            src/qml/pages/delete.svg
         NO_CACHEGEN
         SOURCES
             src/backend/ApplicationBackend.h

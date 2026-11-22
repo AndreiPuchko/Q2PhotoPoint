@@ -207,6 +207,21 @@ Item {
                             Layout.fillWidth: true
                         }
                         Button {
+                            icon.source: "delete.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
+                            enabled: result.navigationActive
+                            Accessible.name: "Remove from result"
+                            ToolTip.text: Accessible.name
+                            ToolTip.visible: hovered
+                            onClicked: result.removePhotoAt(result.photoIndex(fullview.currentImageUrl.toString(), fullview.currentImageHash))
+                        }
+                        Button {
                             icon.source: "remove.svg"
                             icon.width: 18
                             icon.height: 18
@@ -360,6 +375,7 @@ Item {
             radius: 8
             property bool navigationActive: false
             property int selectedPhotoIndex: -1
+            readonly property bool fullviewImageInResult: photoIndex(fullview.currentImageUrl.toString(), fullview.currentImageHash) >= 0
 
             function photoIndex(path, hash) {
                 for (var i = 0; i < selectedPhotos.count; ++i) {
@@ -438,6 +454,31 @@ Item {
 
                 selectedPhotos.move(fromIndex, targetIndex, 1);
                 selectPhotoAt(targetIndex, false);
+            }
+
+            function removePhotoAt(index) {
+                if (index < 0 || index >= selectedPhotos.count)
+                    return false;
+
+                sources.saveCurrentImageState();
+                selectedPhotos.remove(index);
+                navigationActive = true;
+                if (selectedPhotos.count === 0) {
+                    selectedPhotoIndex = -1;
+                    selectedList.currentIndex = -1;
+                    sources.syncSourceSelection("");
+                    fullview.currentImageUrl = "";
+                    fullview.currentImageHash = "";
+                    fullview.currentImageStateIndex = -1;
+                    fullview.rotationAngle = 0;
+                    fullview.zoomFactor = 1;
+                    previewFlickable.contentX = 0;
+                    previewFlickable.contentY = 0;
+                    pageNumberInput.text = "0";
+                } else {
+                    selectPhotoAt(Math.min(index, selectedPhotos.count - 1), false);
+                }
+                return true;
             }
 
             function rowIndexAt(y) {
@@ -558,6 +599,10 @@ Item {
                                 break;
                             case Qt.Key_Right:
                                 fullview.rotateSelectedImage(true);
+                                break;
+                            case Qt.Key_Delete:
+                            case Qt.Key_Minus:
+                                handled = result.removePhotoAt(selectedList.currentIndex);
                                 break;
                             default:
                                 handled = false;
