@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 import Qt.labs.platform
@@ -497,6 +498,29 @@ Item {
                 return true;
             }
 
+            function collectionData() {
+                sources.saveCurrentImageState();
+                var photos = [];
+                for (var i = 0; i < selectedPhotos.count; ++i) {
+                    var photo = selectedPhotos.get(i);
+                    var stateIndex = sources.imageStateIndexFor(photo.path, photo.hash);
+                    var state = imageStateCache.get(stateIndex);
+                    photos.push({
+                        path: photo.path,
+                        fileName: photo.fileName,
+                        hash: photo.hash,
+                        rotation: state.rotation,
+                        zoomFactor: state.zoomFactor,
+                        scrollX: state.scrollX,
+                        scrollY: state.scrollY
+                    });
+                }
+                return {
+                    selectedIndex: selectedPhotoIndex,
+                    photos: photos
+                };
+            }
+
             function rowIndexAt(y) {
                 if (selectedPhotos.count === 0)
                     return -1;
@@ -563,7 +587,7 @@ Item {
                             var origin = drop.getDataAsString("application/x-q2photopoint-origin");
                             if (origin === "result") {
                                 result.navigationActive = true;
-                                sources.navigationActive = false
+                                sources.navigationActive = false;
                                 var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
                                 result.movePhotoToIndex(fromIndex, result.rowIndexAt(drop.y));
                             } else if (origin === "source") {
@@ -718,6 +742,78 @@ Item {
                             }
                         }
                     }
+                }
+                ColumnLayout {
+                    Button {
+                        text: "Open collection"
+                        Layout.fillWidth: true
+                        enabled: selectedPhotos.count > 0
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        Accessible.name: "Save link collection"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                    }
+                    Button {
+                        text: "Save collection"
+                        Layout.fillWidth: true
+                        enabled: selectedPhotos.count > 0
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        Accessible.name: "Save link collection"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: collectionSaveDialog.open()
+                    }
+                    Button {
+                        text: "Save to PDF"
+                        enabled: selectedPhotos.count > 0
+                        Layout.fillWidth: true
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        Accessible.name: "Save collection as PDF"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                    }
+                }
+            }
+
+            FileDialog {
+                id: collectionSaveDialog
+                title: "Save photo collection"
+                fileMode: FileDialog.SaveFile
+                nameFilters: ["Q2PhotoPoint Collection (*.q2c)"]
+                defaultSuffix: "q2c"
+
+                onAccepted: {
+                    var saveResult = fileSystemNavigator.saveCollection(file, result.collectionData());
+                    if (!saveResult.success) {
+                        collectionSaveErrorDialog.errorMessage = saveResult.error;
+                        collectionSaveErrorDialog.open();
+                    }
+                }
+            }
+
+            Controls.Dialog {
+                id: collectionSaveErrorDialog
+                property string errorMessage: ""
+                title: "Could not save collection"
+                modal: true
+                standardButtons: Controls.Dialog.Ok
+
+                contentItem: Label {
+                    text: collectionSaveErrorDialog.errorMessage
+                    wrapMode: Text.Wrap
+                    padding: 16
                 }
             }
         }
@@ -892,8 +988,7 @@ Item {
             }
 
             function addSelectedImageToResult() {
-                if (!navigationActive || showingThisPc || selectedModelIndex < 0 ||
-                    selectedModelIndex >= folderModel.count || folderModel.isFolder(selectedModelIndex))
+                if (!navigationActive || showingThisPc || selectedModelIndex < 0 || selectedModelIndex >= folderModel.count || folderModel.isFolder(selectedModelIndex))
                     return;
 
                 var fileURL = folderModel.get(selectedModelIndex, "fileURL");
@@ -1089,7 +1184,7 @@ Item {
                     onActiveFocusChanged: {
                         if (activeFocus) {
                             result.navigationActive = false;
-                            sources.navigationActive = true
+                            sources.navigationActive = true;
                             if (!sources.showingThisPc && currentIndex >= 0 && !folderModel.isFolder(currentIndex))
                                 sources.selectImageByModelIndex(currentIndex, false);
                         }

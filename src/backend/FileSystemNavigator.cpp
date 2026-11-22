@@ -4,6 +4,10 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QStorageInfo>
 #include <QUrl>
 #include <QVariantMap>
@@ -75,4 +79,57 @@ QString FileSystemNavigator::imageStateHash(const QUrl &url) const
 
     return QString::fromLatin1(
         QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
+}
+
+QVariantMap FileSystemNavigator::saveCollection(const QUrl &url, const QVariantMap &collection) const
+{
+    QVariantMap result;
+    const auto setError = [&result](const QString &message) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), message);
+    };
+
+    if (!url.isLocalFile()) {
+        setError(tr("The collection must be saved to a local file."));
+        return result;
+    }
+
+    const QVariantList photos = collection.value(QStringLiteral("photos")).toList();
+    if (photos.isEmpty()) {
+        setError(tr("The collection is empty."));
+        return result;
+    }
+
+    QString path = url.toLocalFile();
+    if (!path.endsWith(QStringLiteral(".q2c"), Qt::CaseInsensitive))
+        path.append(QStringLiteral(".q2c"));
+
+    QJsonObject documentObject;
+    documentObject.insert(QStringLiteral("format"), QStringLiteral("Q2PhotoPoint Collection"));
+    documentObject.insert(QStringLiteral("version"), 1);
+    documentObject.insert(QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    documentObject.insert(QStringLiteral("selectedIndex"), collection.value(QStringLiteral("selectedIndex")).toInt());
+    documentObject.insert(QStringLiteral("photos"), QJsonArray::fromVariantList(photos));
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        setError(tr("Could not open the collection file: %1").arg(file.errorString()));
+        return result;
+    }
+
+    const QByteArray json = QJsonDocument(documentObject).toJson(QJsonDocument::Indented);
+    if (file.write(json) != json.size()) {
+        setError(tr("Could not write the collection file: %1").arg(file.errorString()));
+        file.cancelWriting();
+        return result;
+    }
+
+    if (!file.commit()) {
+        setError(tr("Could not finish saving the collection: %1").arg(file.errorString()));
+        return result;
+    }
+
+    result.insert(QStringLiteral("success"), true);
+    result.insert(QStringLiteral("path"), path);
+    return result;
 }

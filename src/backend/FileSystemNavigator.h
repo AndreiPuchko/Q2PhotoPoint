@@ -16,4 +16,5 @@ public:
 
     Q_INVOKABLE QVariantList availableWindowsDrives() const;
     Q_INVOKABLE QString imageStateHash(const QUrl &url) const;
+    Q_INVOKABLE QVariantMap saveCollection(const QUrl &url, const QVariantMap &collection) const;
 };
