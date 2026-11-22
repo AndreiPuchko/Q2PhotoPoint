@@ -97,7 +97,7 @@ Item {
                 anchors.margins: 12
                 spacing: 12
 
-                Label {
+                Controls.Label {
                     text: "Preview"
                     font.bold: true
                 }
@@ -182,7 +182,7 @@ Item {
                         onMovementEnded: sources.saveCurrentImageState()
                     }
 
-                    Label {
+                    Controls.Label {
                         anchors.centerIn: parent
                         text: "Select a photo to preview!"
                         color: "#94a3b8"
@@ -198,16 +198,16 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
 
-                        Button {
+                        Controls.Button {
                             text: "Crop"
                         }
-                        Button {
+                        Controls.Button {
                             text: "Adjust"
                         }
                         Item {
                             Layout.fillWidth: true
                         }
-                        Button {
+                        Controls.Button {
                             icon.source: "remove.svg"
                             icon.width: 18
                             icon.height: 18
@@ -220,10 +220,10 @@ Item {
                             Accessible.name: "Zoom out"
                             onClicked: fullview.zoomOut()
                         }
-                        Label {
+                        Controls.Label {
                             text: Math.round(fullview.zoomFactor * 100) + "%"
                         }
-                        Button {
+                        Controls.Button {
                             icon.source: "add.svg"
                             icon.width: 18
                             icon.height: 18
@@ -246,7 +246,7 @@ Item {
                         Item {
                             Layout.fillWidth: true
                         }
-                        Button {
+                        Controls.Button {
                             id: firstPageButton
                             icon.source: "first.svg"
                             icon.width: 18
@@ -260,7 +260,7 @@ Item {
                             Accessible.name: "First image"
                             onClicked: sources.navigateCurrentTo(0)
                         }
-                        Button {
+                        Controls.Button {
                             id: previousPageButton
                             icon.source: "previous.svg"
                             icon.width: 18
@@ -297,11 +297,11 @@ Item {
                                 previewFlickable.forceActiveFocus();
                             }
                         }
-                        Label {
+                        Controls.Label {
                             text: "/ " + sources.navigationCount
                             color: "#64748b"
                         }
-                        Button {
+                        Controls.Button {
                             id: nextPageButton
                             icon.source: "next.svg"
                             icon.width: 18
@@ -315,7 +315,7 @@ Item {
                             Accessible.name: "Next image"
                             onClicked: sources.navigateCurrentTo(sources.navigationIndex < 0 ? 0 : sources.navigationIndex + 1)
                         }
-                        Button {
+                        Controls.Button {
                             id: lastPageButton
                             icon.source: "last.svg"
                             icon.width: 18
@@ -329,7 +329,7 @@ Item {
                             Accessible.name: "Last image"
                             onClicked: sources.navigateCurrentTo(sources.navigationCount - 1)
                         }
-                        Button {
+                        Controls.Button {
                             id: rotatePageButton
                             icon.source: "rotate.svg"
                             icon.width: 18
@@ -350,7 +350,7 @@ Item {
                     Item {
                         Layout.fillWidth: true
                     }
-                    Button {
+                    Controls.Button {
                         text: "Add"
                         icon.source: "add.svg"
                         icon.width: 18
@@ -364,7 +364,7 @@ Item {
                         ToolTip.visible: hovered
                         onClicked: sources.addSelectedImageToResult()
                     }
-                    Button {
+                    Controls.Button {
                         text: "Remove"
                         icon.source: "delete.svg"
                         icon.width: 18
@@ -596,12 +596,12 @@ Item {
                 anchors.margins: 10
                 spacing: 8
 
-                Label {
+                Controls.Label {
                     text: "Selected photos"
                     font.bold: true
                 }
 
-                Label {
+                Controls.Label {
                     text: selectedPhotos.count + " photos"
                     color: "#64748b"
                     font.pixelSize: 12
@@ -789,7 +789,7 @@ Item {
                     }
                 }
                 ColumnLayout {
-                    Button {
+                    Controls.Button {
                         text: "Open collection"
                         Layout.fillWidth: true
                         // enabled: selectedPhotos.count > 0
@@ -803,7 +803,7 @@ Item {
                         ToolTip.visible: hovered
                         onClicked: collectionOpenDialog.open()
                     }
-                    Button {
+                    Controls.Button {
                         text: "Save collection"
                         Layout.fillWidth: true
                         enabled: selectedPhotos.count > 0
@@ -817,7 +817,7 @@ Item {
                         ToolTip.visible: hovered
                         onClicked: collectionSaveDialog.open()
                     }
-                    Button {
+                    Controls.Button {
                         text: "Save to PDF"
                         enabled: selectedPhotos.count > 0
                         Layout.fillWidth: true
@@ -829,6 +829,7 @@ Item {
                         Accessible.name: "Save collection as PDF"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
+                        onClicked: pdfSaveDialog.open()
                     }
                 }
             }
@@ -868,6 +869,23 @@ Item {
                 }
             }
 
+            FileDialog {
+                id: pdfSaveDialog
+                title: "Save collection as PDF"
+                fileMode: FileDialog.SaveFile
+                nameFilters: ["PDF files (*.pdf)"]
+                defaultSuffix: "pdf"
+
+                onAccepted: {
+                    var exportResult = fileSystemNavigator.exportCollectionPdf(file, result.collectionData());
+                    if (!exportResult.success) {
+                        collectionSaveErrorDialog.title = "Could not export PDF";
+                        collectionSaveErrorDialog.errorMessage = exportResult.error;
+                        collectionSaveErrorDialog.open();
+                    }
+                }
+            }
+
             Controls.Dialog {
                 id: collectionSaveErrorDialog
                 property string errorMessage: ""
@@ -875,7 +893,7 @@ Item {
                 modal: true
                 standardButtons: Controls.Dialog.Ok
 
-                contentItem: Label {
+                contentItem: Controls.Label {
                     text: collectionSaveErrorDialog.errorMessage
                     wrapMode: Text.Wrap
                     padding: 16
@@ -1176,14 +1194,14 @@ Item {
                     Layout.fillWidth: true
                     spacing: 6
 
-                    Label {
+                    Controls.Label {
                         text: sources.showingThisPc ? "This PC" : "Current folder"
                         font.bold: true
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
                     }
 
-                    Button {
+                    Controls.Button {
                         icon.source: "folder-up.svg"
                         icon.width: 24
                         icon.height: 24
@@ -1197,7 +1215,7 @@ Item {
                         onClicked: sources.goToParentFolder()
                     }
 
-                    Label {
+                    Controls.Label {
                         text: sources.foundImageCount + " images"
                         color: "#64748b"
                         font.pixelSize: 11
@@ -1205,7 +1223,7 @@ Item {
                     }
                 }
 
-                Label {
+                Controls.Label {
                     text: folderModel.folder.toString()
                     color: "#64748b"
                     font.pixelSize: 12
@@ -1398,7 +1416,7 @@ Item {
                                     }
                                 }
 
-                                Label {
+                                Controls.Label {
                                     Layout.fillWidth: true
                                     Layout.leftMargin: 6
                                     Layout.rightMargin: 6

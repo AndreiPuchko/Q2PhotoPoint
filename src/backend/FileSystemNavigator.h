@@ -18,4 +18,5 @@ public:
     Q_INVOKABLE QString imageStateHash(const QUrl &url) const;
     Q_INVOKABLE QVariantMap saveCollection(const QUrl &url, const QVariantMap &collection) const;
     Q_INVOKABLE QVariantMap loadCollection(const QUrl &url) const;
+    Q_INVOKABLE QVariantMap exportCollectionPdf(const QUrl &url, const QVariantMap &collection) const;
 };

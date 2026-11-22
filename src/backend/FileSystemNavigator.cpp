@@ -4,12 +4,19 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QSaveFile>
 #include <QStorageInfo>
+#include <QTransform>
 #include <QUrl>
 #include <QVariantMap>
 
@@ -206,5 +213,104 @@ QVariantMap FileSystemNavigator::loadCollection(const QUrl &url) const
 
     result.insert(QStringLiteral("success"), true);
     result.insert(QStringLiteral("collection"), object.toVariantMap());
+    return result;
+}
+
+QVariantMap FileSystemNavigator::exportCollectionPdf(const QUrl &url, const QVariantMap &collection) const
+{
+    QVariantMap result;
+    const auto setError = [&result](const QString &message) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), message);
+    };
+
+    if (!url.isLocalFile()) {
+        setError(tr("The PDF must be saved to a local file."));
+        return result;
+    }
+
+    const QVariantList photos = collection.value(QStringLiteral("photos")).toList();
+    if (photos.isEmpty()) {
+        setError(tr("The collection is empty."));
+        return result;
+    }
+
+    QString path = url.toLocalFile();
+    if (!path.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive))
+        path.append(QStringLiteral(".pdf"));
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        setError(tr("Could not open the PDF file: %1").arg(file.errorString()));
+        return result;
+    }
+
+    QPdfWriter writer(&file);
+    writer.setResolution(300);
+    writer.setTitle(QStringLiteral("Q2PhotoPoint collection"));
+    writer.setCreator(QStringLiteral("Q2PhotoPoint"));
+
+    QPainter painter;
+    const auto fail = [&](const QString &message) {
+        if (painter.isActive())
+            painter.end();
+        file.cancelWriting();
+        setError(message);
+        return result;
+    };
+
+    for (qsizetype i = 0; i < photos.size(); ++i) {
+        const QVariantMap photo = photos.at(i).toMap();
+        const QUrl imageUrl(photo.value(QStringLiteral("path")).toString());
+        const QString fileName = photo.value(QStringLiteral("fileName")).toString();
+        if (!imageUrl.isLocalFile())
+            return fail(tr("Photo '%1' does not have a local file path.").arg(fileName));
+
+        QImageReader reader(imageUrl.toLocalFile());
+        reader.setAutoTransform(true);
+        QImage image = reader.read();
+        if (image.isNull())
+            return fail(tr("Could not read photo '%1': %2").arg(fileName, reader.errorString()));
+
+        const int rotation = photo.value(QStringLiteral("rotation")).toInt();
+        if (rotation % 360 != 0)
+            image = image.transformed(QTransform().rotate(rotation), Qt::SmoothTransformation);
+
+        const qreal widthInPoints = image.width() * 72.0 / 300.0;
+        const qreal heightInPoints = image.height() * 72.0 / 300.0;
+        const QSizeF portraitSize(qMin(widthInPoints, heightInPoints), qMax(widthInPoints, heightInPoints));
+        const QPageSize pageSize(portraitSize, QPageSize::Point, QStringLiteral("Photo"), QPageSize::ExactMatch);
+        if (!pageSize.isValid())
+            return fail(tr("Could not create a PDF page for photo '%1'.").arg(fileName));
+
+        const QPageLayout::Orientation orientation = widthInPoints >= heightInPoints
+            ? QPageLayout::Landscape
+            : QPageLayout::Portrait;
+        const QPageLayout pageLayout(pageSize, orientation, QMarginsF(0, 0, 0, 0), QPageLayout::Point);
+        if (!writer.setPageLayout(pageLayout))
+            return fail(tr("Could not set the PDF page size for photo '%1'.").arg(fileName));
+
+        if (i == 0) {
+            if (!painter.begin(&writer))
+                return fail(tr("Could not start writing the PDF."));
+        } else if (!writer.newPage()) {
+            return fail(tr("Could not create a PDF page for photo '%1'.").arg(fileName));
+        }
+
+        painter.drawImage(QRect(0, 0, writer.width(), writer.height()), image);
+    }
+
+    if (!painter.end()) {
+        file.cancelWriting();
+        setError(tr("Could not finish writing the PDF."));
+        return result;
+    }
+    if (!file.commit()) {
+        setError(tr("Could not finish saving the PDF: %1").arg(file.errorString()));
+        return result;
+    }
+
+    result.insert(QStringLiteral("success"), true);
+    result.insert(QStringLiteral("path"), path);
     return result;
 }
