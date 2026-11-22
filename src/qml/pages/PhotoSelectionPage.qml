@@ -71,7 +71,7 @@ Item {
                 previewFlickable.forceActiveFocus();
             }
 
-            function rotateSelectedImage() {
+            function rotateSelectedImage(keepSourceFocus) {
                 if (sources.selectedImageIndex < 0)
                     return;
                 rotationAngle = (rotationAngle + 90) % 360;
@@ -79,7 +79,10 @@ Item {
                 previewFlickable.contentY = 0;
                 sources.saveCurrentImageState();
                 folderList.positionViewAtIndex(sources.selectedModelIndex, ListView.Contain);
-                previewFlickable.forceActiveFocus();
+                if (keepSourceFocus)
+                    folderList.forceActiveFocus()
+                else
+                    previewFlickable.forceActiveFocus()
             }
 
             ColumnLayout {
@@ -467,7 +470,7 @@ Item {
                 previewFlickable.contentY = Math.max(0, Math.min(state.scrollY, previewFlickable.contentHeight - previewFlickable.height));
             }
 
-            function selectImageAt(imageIndex) {
+            function selectImageAt(imageIndex, focusPreview) {
                 if (imageIndex < 0 || imageIndex >= foundImageCount)
                     return;
                 var currentImageIndex = 0;
@@ -475,14 +478,14 @@ Item {
                     if (folderModel.isFolder(modelIndex))
                         continue;
                     if (currentImageIndex === imageIndex) {
-                        selectImageByModelIndex(modelIndex);
+                        selectImageByModelIndex(modelIndex, focusPreview);
                         return;
                     }
                     ++currentImageIndex;
                 }
             }
 
-            function selectImageByModelIndex(modelIndex) {
+            function selectImageByModelIndex(modelIndex, focusPreview) {
                 if (modelIndex < 0 || modelIndex >= folderModel.count || folderModel.isFolder(modelIndex))
                     return;
                 saveCurrentImageState();
@@ -505,7 +508,8 @@ Item {
                 previewFlickable.contentX = 0;
                 previewFlickable.contentY = 0;
                 folderList.positionViewAtIndex(modelIndex, ListView.Contain);
-                previewFlickable.forceActiveFocus();
+                if (focusPreview !== false)
+                    previewFlickable.forceActiveFocus();
                 Qt.callLater(restoreCurrentImagePosition);
             }
 
@@ -525,10 +529,20 @@ Item {
                 fullview.rotationAngle = 0;
                 fullview.zoomFactor = 1;
                 foundImageCount = 0;
+                folderList.currentIndex = thisPcModel.count > 0 ? 0 : -1;
             }
 
             function isWindowsDriveRoot() {
                 return Qt.platform.os === "windows" && /^file:\/\/\/[a-zA-Z]:\/?$/.test(folderModel.folder.toString());
+            }
+
+            function goToParentFolder() {
+                if (showingThisPc)
+                    return;
+                if (isWindowsDriveRoot())
+                    showThisPc();
+                else if (folderModel.parentFolder.toString() !== folderModel.folder.toString())
+                    folderModel.folder = folderModel.parentFolder;
             }
 
             FileSystemNavigator {
@@ -564,8 +578,11 @@ Item {
                 }
 
                 function onStatusChanged() {
-                    if (folderModel.status === FolderListModel.Ready)
+                    if (folderModel.status === FolderListModel.Ready) {
                         sources.updateFoundImageCount();
+                        if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
+                            folderList.currentIndex = 0;
+                    }
                 }
 
                 function onDataChanged() {
@@ -579,7 +596,8 @@ Item {
                     sources.selectedModelIndex = -1;
                     sources.selectedImageHash = "";
                     sources.selectedImageStateIndex = -1;
-                    sources.selectImageAt(0)
+                    folderList.currentIndex = -1;
+                    sources.selectImageAt(0, false);
 
                     pageNumberInput.text = "0";
                     fullview.rotationAngle = 0;
@@ -621,12 +639,7 @@ Item {
                         Accessible.name: "Go to parent folder"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
-                        onClicked: {
-                            if (sources.isWindowsDriveRoot())
-                                sources.showThisPc();
-                            else
-                                folderModel.folder = folderModel.parentFolder;
-                        }
+                        onClicked: sources.goToParentFolder()
                     }
 
                     Label {
@@ -654,6 +667,83 @@ Item {
                     spacing: 6
                     cacheBuffer: height
                     model: sources.showingThisPc ? thisPcModel : folderModel
+                    currentIndex: -1
+                    activeFocusOnTab: true
+
+                    function moveCurrentIndexTo(index) {
+                        if (count === 0)
+                            return;
+
+                        var nextIndex = Math.max(0, Math.min(count - 1, index));
+                        currentIndex = nextIndex;
+                        positionViewAtIndex(nextIndex, ListView.Contain);
+                        if (!sources.showingThisPc && !folderModel.isFolder(nextIndex))
+                            sources.selectImageByModelIndex(nextIndex, false);
+                    }
+
+                    function moveCurrentIndexBy(delta) {
+                        moveCurrentIndexTo(currentIndex < 0 ? 0 : currentIndex + delta);
+                    }
+
+                    function visiblePageStep() {
+                        var firstVisible = indexAt(1, 1);
+                        var lastVisible = indexAt(1, Math.max(1, height - 1));
+                        return firstVisible >= 0 && lastVisible > firstVisible
+                            ? lastVisible - firstVisible
+                            : Math.max(1, Math.floor(height / 96));
+                    }
+
+                    Keys.onPressed: function(event) {
+                        var handled = true;
+                        switch (event.key) {
+                        case Qt.Key_Up:
+                            folderList.moveCurrentIndexBy(-1);
+                            break;
+                        case Qt.Key_Down:
+                            folderList.moveCurrentIndexBy(1);
+                            break;
+                        case Qt.Key_PageUp:
+                            folderList.moveCurrentIndexBy(-folderList.visiblePageStep());
+                            break;
+                        case Qt.Key_PageDown:
+                            folderList.moveCurrentIndexBy(folderList.visiblePageStep());
+                            break;
+                        case Qt.Key_Home:
+                            folderList.moveCurrentIndexTo(0);
+                            break;
+                        case Qt.Key_End:
+                            folderList.moveCurrentIndexTo(folderList.count - 1);
+                            break;
+                        case Qt.Key_Right:
+                            if (!sources.showingThisPc && folderList.currentIndex >= 0 &&
+                                !folderModel.isFolder(folderList.currentIndex)) {
+                                sources.selectImageByModelIndex(folderList.currentIndex, false);
+                                fullview.rotateSelectedImage(true);
+                            }
+                            break;
+                        case Qt.Key_Slash:
+                            sources.goToParentFolder();
+                            folderList.forceActiveFocus();
+                            break;
+                        case Qt.Key_Return:
+                        case Qt.Key_Enter:
+                            if (folderList.currentIndex >= 0) {
+                                if (sources.showingThisPc) {
+                                    var drive = thisPcModel.get(folderList.currentIndex);
+                                    sources.showingThisPc = false;
+                                    folderModel.folder = drive.fileURL;
+                                } else if (folderModel.isFolder(folderList.currentIndex)) {
+                                    folderModel.folder = folderModel.get(folderList.currentIndex, "fileURL");
+                                }
+                            }
+                            break;
+                        default:
+                            handled = false;
+                        }
+                        if (handled)
+                            event.accepted = true;
+                    }
+
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
                     }
@@ -676,8 +766,9 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
-                            border.width: fileItem.isSelectedImage ? 2 : 0
-                            border.color: "#1976d2"
+                            border.width: fileItem.isSelectedImage ? 2
+                                : folderList.activeFocus && folderList.currentIndex === fileItem.index ? 1 : 0
+                            border.color: fileItem.isSelectedImage ? "#1976d2" : "#64748b"
                             color: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
 
                             ColumnLayout {
@@ -722,13 +813,15 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
+                                folderList.currentIndex = fileItem.index;
+                                folderList.forceActiveFocus();
                                 if (sources.showingThisPc) {
                                     sources.showingThisPc = false;
                                     folderModel.folder = fileItem.fileURL;
                                 } else if (folderModel.isFolder(fileItem.index)) {
                                     folderModel.folder = fileItem.fileURL;
                                 } else {
-                                    sources.selectImageByModelIndex(fileItem.index);
+                                    sources.selectImageByModelIndex(fileItem.index, false);
                                 }
                             }
                         }
