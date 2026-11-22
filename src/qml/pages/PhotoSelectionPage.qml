@@ -207,21 +207,6 @@ Item {
                             Layout.fillWidth: true
                         }
                         Button {
-                            icon.source: "delete.svg"
-                            icon.width: 18
-                            icon.height: 18
-                            icon.color: "#2E39B3"
-                            Layout.minimumWidth: 32
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            padding: 4
-                            enabled: result.navigationActive
-                            Accessible.name: "Remove from result"
-                            ToolTip.text: Accessible.name
-                            ToolTip.visible: hovered
-                            onClicked: result.removePhotoAt(result.photoIndex(fullview.currentImageUrl.toString(), fullview.currentImageHash))
-                        }
-                        Button {
                             icon.source: "remove.svg"
                             icon.width: 18
                             icon.height: 18
@@ -360,6 +345,37 @@ Item {
                         Item {
                             Layout.fillWidth: true
                         }
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    Button {
+                        text: "Add"
+                        icon.source: "add.svg"
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        enabled: sources.navigationActive
+                        Accessible.name: "Add to result"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: sources.addSelectedImageToResult()
+                    }
+                    Button {
+                        text: "Remove"
+                        icon.source: "delete.svg"
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        enabled: result.navigationActive
+                        Accessible.name: "Remove from result"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: result.removePhotoAt(result.photoIndex(fullview.currentImageUrl.toString(), fullview.currentImageHash))
                     }
                 }
             }
@@ -547,6 +563,7 @@ Item {
                             var origin = drop.getDataAsString("application/x-q2photopoint-origin");
                             if (origin === "result") {
                                 result.navigationActive = true;
+                                sources.navigationActive = false
                                 var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
                                 result.movePhotoToIndex(fromIndex, result.rowIndexAt(drop.y));
                             } else if (origin === "source") {
@@ -714,6 +731,7 @@ Item {
 
             color: "white"
             radius: 8
+            property bool navigationActive: false
             readonly property int minimumPreviewHeight: 96
             property int foundImageCount: 0
             property bool showingThisPc: false
@@ -871,6 +889,18 @@ Item {
                 if (focusPreview !== false)
                     previewFlickable.forceActiveFocus();
                 Qt.callLater(restoreCurrentImagePosition);
+            }
+
+            function addSelectedImageToResult() {
+                if (!navigationActive || showingThisPc || selectedModelIndex < 0 ||
+                    selectedModelIndex >= folderModel.count || folderModel.isFolder(selectedModelIndex))
+                    return;
+
+                var fileURL = folderModel.get(selectedModelIndex, "fileURL");
+                var fileName = folderModel.get(selectedModelIndex, "fileName");
+                var hash = fileSystemNavigator.imageStateHash(fileURL);
+                navigationActive = false;
+                result.addPhoto(fileURL, fileName, hash, undefined, true);
             }
 
             function showThisPc() {
@@ -1059,6 +1089,7 @@ Item {
                     onActiveFocusChanged: {
                         if (activeFocus) {
                             result.navigationActive = false;
+                            sources.navigationActive = true
                             if (!sources.showingThisPc && currentIndex >= 0 && !folderModel.isFolder(currentIndex))
                                 sources.selectImageByModelIndex(currentIndex, false);
                         }
