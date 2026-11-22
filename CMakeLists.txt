@@ -31,6 +31,8 @@ qt_add_qml_module(Q2PhotoPoint
         QML_FILES
             src/qml/Main.qml
             src/qml/pages/PhotoSelectionPage.qml
+        RESOURCES
+            src/qml/pages/folder-up.svg
         NO_CACHEGEN
         SOURCES
             src/backend/ApplicationBackend.h

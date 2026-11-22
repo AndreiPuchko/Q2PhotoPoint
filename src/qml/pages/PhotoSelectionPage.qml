@@ -140,6 +140,16 @@ Item {
             radius: 8
             id: sources
             readonly property int minimumPreviewHeight: 96
+            property int foundImageCount: 0
+
+            function updateFoundImageCount() {
+                var count = 0
+                for (var i = 0; i < folderModel.count; ++i) {
+                    if (!folderModel.isFolder(i))
+                        ++count
+                }
+                foundImageCount = count
+            }
 
             FolderListModel {
                 id: folderModel
@@ -154,14 +164,59 @@ Item {
                 sortField: FolderListModel.Name
             }
 
+            Connections {
+                target: folderModel
+
+                function onCountChanged() {
+                    sources.updateFoundImageCount()
+                }
+
+                function onStatusChanged() {
+                    if (folderModel.status === FolderListModel.Ready)
+                        sources.updateFoundImageCount()
+                }
+
+                function onDataChanged() {
+                    sources.updateFoundImageCount()
+                }
+            }
+
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 10
                 spacing: 8
 
-                Label {
-                    text: "Current folder"
-                    font.bold: true
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Label {
+                        text: "Current folder"
+                        font.bold: true
+                        Layout.minimumWidth: 0
+                        elide: Text.ElideRight
+                    }
+
+                    Button {
+                        icon.source: "folder-up.svg"
+                        icon.width: 24
+                        icon.height: 24
+                        icon.color: "#64748b"
+                        Layout.minimumWidth: 36
+                        Layout.preferredWidth: 36
+                        visible: folderModel.parentFolder.toString() !== folderModel.folder.toString()
+                        Accessible.name: "Go to parent folder"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: folderModel.folder = folderModel.parentFolder
+                    }
+
+                    Label {
+                        text: sources.foundImageCount + " images"
+                        color: "#64748b"
+                        font.pixelSize: 11
+                    }
+
                 }
 
                 Label {
@@ -182,17 +237,6 @@ Item {
                     model: folderModel
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
-                    }
-
-                    header: Item {
-                        width: folderList.width
-                        height: folderModel.parentFolder.toString() === folderModel.folder.toString() ? 0 : 42
-
-                        Button {
-                            anchors.fill: parent
-                            text: ".."
-                            onClicked: folderModel.folder = folderModel.parentFolder
-                        }
                     }
 
                     delegate: Item {
