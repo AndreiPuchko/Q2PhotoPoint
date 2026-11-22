@@ -48,6 +48,19 @@ Item {
 
             color: "white"
             radius: 8
+            id: fullview
+            property real zoomFactor: 1
+            readonly property real minimumZoomFactor: 1
+            readonly property real maximumZoomFactor: 8
+            readonly property real zoomStep: 1.25
+
+            function zoomIn() {
+                zoomFactor = Math.min(maximumZoomFactor, zoomFactor * zoomStep)
+            }
+
+            function zoomOut() {
+                zoomFactor = Math.max(minimumZoomFactor, zoomFactor / zoomStep)
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -60,15 +73,95 @@ Item {
                 }
 
                 Rectangle {
+                    id: previewViewport
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     color: "#f1f5f9"
                     radius: 6
+                    clip: true
+
+                    Flickable {
+                        id: previewFlickable
+                        anchors.fill: parent
+                        clip: true
+                        focus: false
+                        boundsBehavior: Flickable.StopAtBounds
+                        contentWidth: Math.max(width, selectedPreview.width)
+                        contentHeight: Math.max(height, selectedPreview.height)
+
+                        Keys.onPressed: function(event) {
+                            if (event.key === Qt.Key_Plus || event.text === "+") {
+                                fullview.zoomIn()
+                                event.accepted = true
+                            } else if (event.key === Qt.Key_Minus || event.text === "-") {
+                                fullview.zoomOut()
+                                event.accepted = true
+                            }
+                        }
+
+                        Image {
+                            id: selectedPreview
+                            visible: sources.selectedImageUrl.toString() !== ""
+                            source: sources.selectedImageUrl
+                            asynchronous: true
+                            cache: true
+                            sourceSize.width: Math.ceil(previewFlickable.width * fullview.zoomFactor)
+                            fillMode: Image.PreserveAspectFit
+
+                            readonly property real fitScale: implicitWidth > 0 && implicitHeight > 0
+                                ? Math.min(previewFlickable.width / implicitWidth,
+                                           previewFlickable.height / implicitHeight)
+                                : 1
+                            width: implicitWidth > 0
+                                ? implicitWidth * fitScale * fullview.zoomFactor
+                                : previewFlickable.width
+                            height: implicitHeight > 0
+                                ? implicitHeight * fitScale * fullview.zoomFactor
+                                : previewFlickable.height
+                            x: Math.max(0, (previewFlickable.contentWidth - width) / 2)
+                            y: Math.max(0, (previewFlickable.contentHeight - height) / 2)
+                        }
+
+                        WheelHandler {
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+
+                            onWheel: function(event) {
+                                if (event.modifiers & Qt.ControlModifier) {
+                                    if (event.angleDelta.y > 0 || event.pixelDelta.y > 0)
+                                        fullview.zoomIn()
+                                    else if (event.angleDelta.y < 0 || event.pixelDelta.y < 0)
+                                        fullview.zoomOut()
+                                } else {
+                                    var deltaX = event.pixelDelta.x !== 0
+                                        ? event.pixelDelta.x : event.angleDelta.x
+                                    var deltaY = event.pixelDelta.y !== 0
+                                        ? event.pixelDelta.y : event.angleDelta.y
+                                    if (deltaX !== 0)
+                                        previewFlickable.contentX = Math.max(
+                                            0, Math.min(previewFlickable.contentWidth - previewFlickable.width,
+                                                        previewFlickable.contentX - deltaX))
+                                    if (deltaY !== 0)
+                                        previewFlickable.contentY = Math.max(
+                                            0, Math.min(previewFlickable.contentHeight - previewFlickable.height,
+                                                        previewFlickable.contentY - deltaY))
+                                }
+                                event.accepted = true
+                            }
+                        }
+
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+                        ScrollBar.horizontal: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+                    }
 
                     Label {
                         anchors.centerIn: parent
                         text: "Select a photo to preview!"
                         color: "#94a3b8"
+                        visible: sources.selectedImageUrl.toString() === ""
                     }
                 }
 
@@ -84,6 +177,23 @@ Item {
                     }
                     Item {
                         Layout.fillWidth: true
+                    }
+                    Button {
+                        text: "-"
+                        enabled: sources.selectedImageUrl.toString() !== "" &&
+                            fullview.zoomFactor > fullview.minimumZoomFactor
+                        Accessible.name: "Zoom out"
+                        onClicked: fullview.zoomOut()
+                    }
+                    Label {
+                        text: Math.round(fullview.zoomFactor * 100) + "%"
+                    }
+                    Button {
+                        text: "+"
+                        enabled: sources.selectedImageUrl.toString() !== "" &&
+                            fullview.zoomFactor < fullview.maximumZoomFactor
+                        Accessible.name: "Zoom in"
+                        onClicked: fullview.zoomIn()
                     }
                 }
             }
@@ -143,6 +253,7 @@ Item {
             readonly property int minimumPreviewHeight: 96
             property int foundImageCount: 0
             property bool showingThisPc: false
+            property url selectedImageUrl: ""
 
             function updateFoundImageCount() {
                 var count = 0
@@ -159,6 +270,8 @@ Item {
                 for (var i = 0; i < drives.length; ++i)
                     thisPcModel.append(drives[i])
                 showingThisPc = true
+                selectedImageUrl = ""
+                fullview.zoomFactor = 1
                 foundImageCount = 0
             }
 
@@ -202,6 +315,13 @@ Item {
 
                 function onDataChanged() {
                     sources.updateFoundImageCount()
+                }
+
+                function onFolderChanged() {
+                    sources.selectedImageUrl = ""
+                    fullview.zoomFactor = 1
+                    previewFlickable.contentX = 0
+                    previewFlickable.contentY = 0
                 }
             }
 
@@ -284,6 +404,9 @@ Item {
                         required property var fileURL
 
                         width: folderList.width
+                        readonly property bool isSelectedImage: !sources.showingThisPc &&
+                            !folderModel.isFolder(index) &&
+                            fileItem.fileURL.toString() === sources.selectedImageUrl.toString()
                         readonly property real previewHeight: Math.max(
                             sources.minimumPreviewHeight,
                             thumbnail.implicitWidth > 0
@@ -295,6 +418,8 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
+                            border.width: fileItem.isSelectedImage ? 2 : 0
+                            border.color: "#1976d2"
                             color: sources.showingThisPc || folderModel.isFolder(fileItem.index)
                                 ? "#f1f5f9" : "#e2e8f0"
 
@@ -343,6 +468,12 @@ Item {
                                     folderModel.folder = fileItem.fileURL
                                 } else if (folderModel.isFolder(fileItem.index)) {
                                     folderModel.folder = fileItem.fileURL
+                                } else {
+                                    sources.selectedImageUrl = fileItem.fileURL
+                                    fullview.zoomFactor = 1
+                                    previewFlickable.contentX = 0
+                                    previewFlickable.contentY = 0
+                                    previewFlickable.forceActiveFocus()
                                 }
                             }
                         }
