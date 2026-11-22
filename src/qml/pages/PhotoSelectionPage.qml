@@ -1100,7 +1100,16 @@ Item {
                         readonly property bool isSelectedImage: !sources.showingThisPc && !folderModel.isFolder(index) && fileItem.imagePath === sources.selectedImageUrl.toString()
                         readonly property int cachedRotation: isSelectedImage ? fullview.rotationAngle : sources.rotationForImage(fileItem.imagePath, fileItem.imageHash)
                         readonly property bool isRotated: cachedRotation % 180 !== 0
-                        readonly property real previewHeight: Math.max(sources.minimumPreviewHeight, thumbnail.implicitWidth > 0 ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight : thumbnail.implicitHeight / thumbnail.implicitWidth) : sources.minimumPreviewHeight)
+                        readonly property real unrotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0
+                            ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth
+                            : sources.minimumPreviewHeight
+                        readonly property real rotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0
+                            ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight
+                                                        : thumbnail.implicitHeight / thumbnail.implicitWidth)
+                            : sources.minimumPreviewHeight
+                        readonly property real previewHeight: Math.max(sources.minimumPreviewHeight,
+                            isRotated && unrotatedPreviewHeight < sources.minimumPreviewHeight
+                                ? sources.minimumPreviewHeight : rotatedPreviewHeight)
                         height: sources.showingThisPc ? 48 : folderModel.isFolder(index) ? 48 : previewHeight + 34
 
                         // Drag.active: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) && sourceDragArea.drag.active
