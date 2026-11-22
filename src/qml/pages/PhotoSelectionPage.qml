@@ -1,6 +1,10 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt.labs.folderlistmodel
+import Qt.labs.platform
 
 Item {
     id: root
@@ -134,6 +138,21 @@ Item {
 
             color: "white"
             radius: 8
+            id: sources
+            readonly property int minimumPreviewHeight: 96
+
+            FolderListModel {
+                id: folderModel
+                folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+                nameFilters: ["*.jpg", "*.jpeg", "*.png"]
+                showDirs: true
+                showFiles: true
+                showDirsFirst: true
+                showDotAndDotDot: false
+                showOnlyReadable: true
+                caseSensitive: false
+                sortField: FolderListModel.Name
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -146,9 +165,11 @@ Item {
                 }
 
                 Label {
-                    text: "Demo photos"
+                    text: folderModel.folder.toString()
                     color: "#64748b"
                     font.pixelSize: 12
+                    elide: Text.ElideMiddle
+                    Layout.fillWidth: true
                 }
 
                 ListView {
@@ -156,14 +177,85 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    spacing: 8
-                    model: 0
+                    spacing: 6
+                    cacheBuffer: height
+                    model: folderModel
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
 
-                    delegate: Rectangle {
+                    header: Item {
                         width: folderList.width
-                        height: width * 0.75
-                        color: "#e2e8f0"
-                        radius: 4
+                        height: folderModel.parentFolder.toString() === folderModel.folder.toString() ? 0 : 42
+
+                        Button {
+                            anchors.fill: parent
+                            text: ".."
+                            onClicked: folderModel.folder = folderModel.parentFolder
+                        }
+                    }
+
+                    delegate: Item {
+                        id: fileItem
+                        required property int index
+                        required property string fileName
+                        required property url fileURL
+
+                        width: folderList.width
+                        readonly property real previewHeight: Math.max(
+                            sources.minimumPreviewHeight,
+                            thumbnail.implicitWidth > 0
+                                ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth
+                                : sources.minimumPreviewHeight)
+                        height: folderModel.isFolder(index) ? 48 : previewHeight + 34
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 4
+                            color: folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 4
+
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: fileItem.previewHeight
+                                    visible: !folderModel.isFolder(fileItem.index)
+
+                                    Image {
+                                        id: thumbnail
+                                        anchors.fill: parent
+                                        anchors.margins: 2
+                                        source: fileItem.fileURL
+                                        asynchronous: true
+                                        cache: true
+                                        sourceSize.width: width
+                                        fillMode: Image.PreserveAspectFit
+                                    }
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: 6
+                                    Layout.rightMargin: 6
+                                    Layout.bottomMargin: 4
+                                    Layout.preferredHeight: folderModel.isFolder(fileItem.index) ? 48 : implicitHeight
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: folderModel.isFolder(fileItem.index) ? "\uD83D\uDCC1  " + fileItem.fileName : fileItem.fileName
+                                    elide: Text.ElideMiddle
+                                    color: "#334155"
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (folderModel.isFolder(fileItem.index))
+                                    folderModel.folder = fileItem.fileURL
+                            }
+                        }
                     }
                 }
             }
