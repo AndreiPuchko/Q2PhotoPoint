@@ -43,12 +43,12 @@ Item {
         }
         // Full preview
         Rectangle {
+            id: fullview
             SplitView.fillWidth: true
             SplitView.minimumWidth: 300
 
             color: "white"
             radius: 8
-            id: fullview
             property real zoomFactor: 1
             readonly property real minimumZoomFactor: 1
             readonly property real maximumZoomFactor: 8
@@ -57,30 +57,29 @@ Item {
 
             function zoomIn() {
                 if (sources.selectedImageIndex < 0)
-                    return
-                zoomFactor = Math.min(maximumZoomFactor, zoomFactor * zoomStep)
-                sources.saveCurrentImageState()
-                previewFlickable.forceActiveFocus()
+                    return;
+                zoomFactor = Math.min(maximumZoomFactor, zoomFactor * zoomStep);
+                sources.saveCurrentImageState();
+                previewFlickable.forceActiveFocus();
             }
 
             function zoomOut() {
                 if (sources.selectedImageIndex < 0)
-                    return
-                zoomFactor = Math.max(minimumZoomFactor, zoomFactor / zoomStep)
-                sources.saveCurrentImageState()
-                previewFlickable.forceActiveFocus()
+                    return;
+                zoomFactor = Math.max(minimumZoomFactor, zoomFactor / zoomStep);
+                sources.saveCurrentImageState();
+                previewFlickable.forceActiveFocus();
             }
 
             function rotateSelectedImage() {
                 if (sources.selectedImageIndex < 0)
-                    return
-
-                rotationAngle = (rotationAngle + 90) % 360
-                previewFlickable.contentX = 0
-                previewFlickable.contentY = 0
-                sources.saveCurrentImageState()
-                folderList.positionViewAtIndex(sources.selectedModelIndex, ListView.Contain)
-                previewFlickable.forceActiveFocus()
+                    return;
+                rotationAngle = (rotationAngle + 90) % 360;
+                previewFlickable.contentX = 0;
+                previewFlickable.contentY = 0;
+                sources.saveCurrentImageState();
+                folderList.positionViewAtIndex(sources.selectedModelIndex, ListView.Contain);
+                previewFlickable.forceActiveFocus();
             }
 
             ColumnLayout {
@@ -110,13 +109,13 @@ Item {
                         contentWidth: Math.max(width, selectedPreview.rotatedWidth)
                         contentHeight: Math.max(height, selectedPreview.rotatedHeight)
 
-                        Keys.onPressed: function(event) {
+                        Keys.onPressed: function (event) {
                             if (event.key === Qt.Key_Plus || event.text === "+") {
-                                fullview.zoomIn()
-                                event.accepted = true
+                                fullview.zoomIn();
+                                event.accepted = true;
                             } else if (event.key === Qt.Key_Minus || event.text === "-") {
-                                fullview.zoomOut()
-                                event.accepted = true
+                                fullview.zoomOut();
+                                event.accepted = true;
                             }
                         }
 
@@ -129,23 +128,11 @@ Item {
                             sourceSize.width: Math.ceil(previewFlickable.width * fullview.zoomFactor)
                             fillMode: Image.PreserveAspectFit
 
-                            readonly property real fitScale: implicitWidth > 0 && implicitHeight > 0
-                                ? Math.min(
-                                    previewFlickable.width / (fullview.rotationAngle % 180 === 0
-                                        ? implicitWidth : implicitHeight),
-                                    previewFlickable.height / (fullview.rotationAngle % 180 === 0
-                                        ? implicitHeight : implicitWidth))
-                                : 1
-                            readonly property real rotatedWidth: fullview.rotationAngle % 180 === 0
-                                ? width : height
-                            readonly property real rotatedHeight: fullview.rotationAngle % 180 === 0
-                                ? height : width
-                            width: implicitWidth > 0
-                                ? implicitWidth * fitScale * fullview.zoomFactor
-                                : previewFlickable.width
-                            height: implicitHeight > 0
-                                ? implicitHeight * fitScale * fullview.zoomFactor
-                                : previewFlickable.height
+                            readonly property real fitScale: implicitWidth > 0 && implicitHeight > 0 ? Math.min(previewFlickable.width / (fullview.rotationAngle % 180 === 0 ? implicitWidth : implicitHeight), previewFlickable.height / (fullview.rotationAngle % 180 === 0 ? implicitHeight : implicitWidth)) : 1
+                            readonly property real rotatedWidth: fullview.rotationAngle % 180 === 0 ? width : height
+                            readonly property real rotatedHeight: fullview.rotationAngle % 180 === 0 ? height : width
+                            width: implicitWidth > 0 ? implicitWidth * fitScale * fullview.zoomFactor : previewFlickable.width
+                            height: implicitHeight > 0 ? implicitHeight * fitScale * fullview.zoomFactor : previewFlickable.height
                             x: Math.max(0, (previewFlickable.contentWidth - width) / 2)
                             y: Math.max(0, (previewFlickable.contentHeight - height) / 2)
                             rotation: fullview.rotationAngle
@@ -153,35 +140,27 @@ Item {
 
                             onStatusChanged: {
                                 if (status === Image.Ready)
-                                    sources.restoreCurrentImagePosition()
+                                    sources.restoreCurrentImagePosition();
                             }
                         }
 
                         WheelHandler {
                             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
 
-                            onWheel: function(event) {
+                            onWheel: function (event) {
                                 if (event.modifiers & Qt.ControlModifier) {
                                     if (event.angleDelta.y > 0 || event.pixelDelta.y > 0)
-                                        fullview.zoomIn()
+                                        fullview.zoomIn();
                                     else if (event.angleDelta.y < 0 || event.pixelDelta.y < 0)
-                                        fullview.zoomOut()
+                                        fullview.zoomOut();
                                 } else {
-                                    var deltaX = event.pixelDelta.x !== 0
-                                        ? event.pixelDelta.x : event.angleDelta.x
-                                    var deltaY = event.pixelDelta.y !== 0
-                                        ? event.pixelDelta.y : event.angleDelta.y
-                                    if (deltaX !== 0)
-                                        previewFlickable.contentX = Math.max(
-                                            0, Math.min(previewFlickable.contentWidth - previewFlickable.width,
-                                                        previewFlickable.contentX - deltaX))
-                                    if (deltaY !== 0)
-                                        previewFlickable.contentY = Math.max(
-                                            0, Math.min(previewFlickable.contentHeight - previewFlickable.height,
-                                                        previewFlickable.contentY - deltaY))
-                                    sources.saveCurrentImageState()
+                                    if (event.angleDelta.y < 0) {
+                                        sources.selectImageAt(sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1);
+                                    } else if (event.angleDelta.y > 0) {
+                                        sources.selectImageAt(sources.selectedImageIndex - 1);
+                                    }
                                 }
-                                event.accepted = true
+                                event.accepted = true;
                             }
                         }
 
@@ -203,7 +182,7 @@ Item {
                     }
                 }
 
-                ColumnLayout {
+                RowLayout {
                     id: fullviewToolbar
                     Layout.fillWidth: true
                     spacing: 2
@@ -229,8 +208,7 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex >= 0 &&
-                                fullview.zoomFactor > fullview.minimumZoomFactor
+                            enabled: sources.selectedImageIndex >= 0 && fullview.zoomFactor > fullview.minimumZoomFactor
                             Accessible.name: "Zoom out"
                             onClicked: fullview.zoomOut()
                         }
@@ -246,8 +224,7 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex >= 0 &&
-                                fullview.zoomFactor < fullview.maximumZoomFactor
+                            enabled: sources.selectedImageIndex >= 0 && fullview.zoomFactor < fullview.maximumZoomFactor
                             Accessible.name: "Zoom in"
                             onClicked: fullview.zoomIn()
                         }
@@ -303,14 +280,13 @@ Item {
                             enabled: sources.foundImageCount > 0
                             Accessible.name: "Image number"
                             onAccepted: {
-                                var requestedPage = Number(text)
+                                var requestedPage = Number(text);
                                 if (requestedPage >= 1 && requestedPage <= sources.foundImageCount) {
-                                    sources.selectImageAt(requestedPage - 1)
+                                    sources.selectImageAt(requestedPage - 1);
                                 } else {
-                                    text = sources.selectedImageIndex >= 0
-                                        ? String(sources.selectedImageIndex + 1) : "0"
+                                    text = sources.selectedImageIndex >= 0 ? String(sources.selectedImageIndex + 1) : "0";
                                 }
-                                previewFlickable.forceActiveFocus()
+                                previewFlickable.forceActiveFocus();
                             }
                         }
                         Label {
@@ -327,11 +303,9 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.foundImageCount > 0 &&
-                                sources.selectedImageIndex < sources.foundImageCount - 1
+                            enabled: sources.foundImageCount > 0 && sources.selectedImageIndex < sources.foundImageCount - 1
                             Accessible.name: "Next image"
-                            onClicked: sources.selectImageAt(
-                                sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1)
+                            onClicked: sources.selectImageAt(sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1)
                         }
                         Button {
                             id: lastPageButton
@@ -413,13 +387,13 @@ Item {
 
         // Current folder
         Rectangle {
+            id: sources
             SplitView.preferredWidth: 240
             SplitView.minimumWidth: 120
             SplitView.maximumWidth: 450
 
             color: "white"
             radius: 8
-            id: sources
             readonly property int minimumPreviewHeight: 96
             property int foundImageCount: 0
             property bool showingThisPc: false
@@ -430,28 +404,27 @@ Item {
             property int selectedImageStateIndex: -1
 
             function updateFoundImageCount() {
-                var count = 0
+                var count = 0;
                 for (var i = 0; i < folderModel.count; ++i) {
                     if (!folderModel.isFolder(i))
-                        ++count
+                        ++count;
                 }
-                foundImageCount = count
+                foundImageCount = count;
             }
 
             function imageStateIndexFor(path, hash) {
                 for (var i = 0; i < imageStateCache.count; ++i) {
-                    var state = imageStateCache.get(i)
+                    var state = imageStateCache.get(i);
                     if (state.path !== path)
-                        continue
-
+                        continue;
                     if (state.hash !== hash) {
-                        imageStateCache.setProperty(i, "hash", hash)
-                        imageStateCache.setProperty(i, "rotation", 0)
-                        imageStateCache.setProperty(i, "zoomFactor", 1)
-                        imageStateCache.setProperty(i, "scrollX", 0)
-                        imageStateCache.setProperty(i, "scrollY", 0)
+                        imageStateCache.setProperty(i, "hash", hash);
+                        imageStateCache.setProperty(i, "rotation", 0);
+                        imageStateCache.setProperty(i, "zoomFactor", 1);
+                        imageStateCache.setProperty(i, "scrollX", 0);
+                        imageStateCache.setProperty(i, "scrollY", 0);
                     }
-                    return i
+                    return i;
                 }
 
                 imageStateCache.append({
@@ -461,111 +434,101 @@ Item {
                     zoomFactor: 1,
                     scrollX: 0,
                     scrollY: 0
-                })
-                return imageStateCache.count - 1
+                });
+                return imageStateCache.count - 1;
             }
 
             function rotationForImage(path, hash) {
                 for (var i = 0; i < imageStateCache.count; ++i) {
-                    var state = imageStateCache.get(i)
+                    var state = imageStateCache.get(i);
                     if (state.path === path && state.hash === hash)
-                        return state.rotation
+                        return state.rotation;
                 }
-                return 0
+                return 0;
             }
 
             function saveCurrentImageState() {
                 if (selectedImageStateIndex < 0)
-                    return
-
-                var state = imageStateCache.get(selectedImageStateIndex)
+                    return;
+                var state = imageStateCache.get(selectedImageStateIndex);
                 if (state.path !== selectedImageUrl.toString() || state.hash !== selectedImageHash)
-                    return
-
-                imageStateCache.setProperty(selectedImageStateIndex, "rotation", fullview.rotationAngle)
-                imageStateCache.setProperty(selectedImageStateIndex, "zoomFactor", fullview.zoomFactor)
-                imageStateCache.setProperty(selectedImageStateIndex, "scrollX", previewFlickable.contentX)
-                imageStateCache.setProperty(selectedImageStateIndex, "scrollY", previewFlickable.contentY)
+                    return;
+                imageStateCache.setProperty(selectedImageStateIndex, "rotation", fullview.rotationAngle);
+                imageStateCache.setProperty(selectedImageStateIndex, "zoomFactor", fullview.zoomFactor);
+                imageStateCache.setProperty(selectedImageStateIndex, "scrollX", previewFlickable.contentX);
+                imageStateCache.setProperty(selectedImageStateIndex, "scrollY", previewFlickable.contentY);
             }
 
             function restoreCurrentImagePosition() {
                 if (selectedImageStateIndex < 0 || selectedPreview.status !== Image.Ready)
-                    return
-
-                var state = imageStateCache.get(selectedImageStateIndex)
-                previewFlickable.contentX = Math.max(
-                    0, Math.min(state.scrollX, previewFlickable.contentWidth - previewFlickable.width))
-                previewFlickable.contentY = Math.max(
-                    0, Math.min(state.scrollY, previewFlickable.contentHeight - previewFlickable.height))
+                    return;
+                var state = imageStateCache.get(selectedImageStateIndex);
+                previewFlickable.contentX = Math.max(0, Math.min(state.scrollX, previewFlickable.contentWidth - previewFlickable.width));
+                previewFlickable.contentY = Math.max(0, Math.min(state.scrollY, previewFlickable.contentHeight - previewFlickable.height));
             }
 
             function selectImageAt(imageIndex) {
                 if (imageIndex < 0 || imageIndex >= foundImageCount)
-                    return
-
-                var currentImageIndex = 0
+                    return;
+                var currentImageIndex = 0;
                 for (var modelIndex = 0; modelIndex < folderModel.count; ++modelIndex) {
                     if (folderModel.isFolder(modelIndex))
-                        continue
+                        continue;
                     if (currentImageIndex === imageIndex) {
-                        selectImageByModelIndex(modelIndex)
-                        return
+                        selectImageByModelIndex(modelIndex);
+                        return;
                     }
-                    ++currentImageIndex
+                    ++currentImageIndex;
                 }
             }
 
             function selectImageByModelIndex(modelIndex) {
-                if (modelIndex < 0 || modelIndex >= folderModel.count ||
-                    folderModel.isFolder(modelIndex))
-                    return
+                if (modelIndex < 0 || modelIndex >= folderModel.count || folderModel.isFolder(modelIndex))
+                    return;
+                saveCurrentImageState();
 
-                saveCurrentImageState()
-
-                var imageIndex = 0
+                var imageIndex = 0;
                 for (var i = 0; i < modelIndex; ++i) {
                     if (!folderModel.isFolder(i))
-                        ++imageIndex
+                        ++imageIndex;
                 }
 
-                selectedImageIndex = imageIndex
-                selectedModelIndex = modelIndex
-                selectedImageUrl = folderModel.get(modelIndex, "fileURL")
-                selectedImageHash = fileSystemNavigator.imageStateHash(selectedImageUrl)
-                selectedImageStateIndex = imageStateIndexFor(
-                    selectedImageUrl.toString(), selectedImageHash)
-                var state = imageStateCache.get(selectedImageStateIndex)
-                fullview.rotationAngle = state.rotation
-                fullview.zoomFactor = state.zoomFactor
-                pageNumberInput.text = String(imageIndex + 1)
-                previewFlickable.contentX = 0
-                previewFlickable.contentY = 0
-                folderList.positionViewAtIndex(modelIndex, ListView.Contain)
-                previewFlickable.forceActiveFocus()
-                Qt.callLater(restoreCurrentImagePosition)
+                selectedImageIndex = imageIndex;
+                selectedModelIndex = modelIndex;
+                selectedImageUrl = folderModel.get(modelIndex, "fileURL");
+                selectedImageHash = fileSystemNavigator.imageStateHash(selectedImageUrl);
+                selectedImageStateIndex = imageStateIndexFor(selectedImageUrl.toString(), selectedImageHash);
+                var state = imageStateCache.get(selectedImageStateIndex);
+                fullview.rotationAngle = state.rotation;
+                fullview.zoomFactor = state.zoomFactor;
+                pageNumberInput.text = String(imageIndex + 1);
+                previewFlickable.contentX = 0;
+                previewFlickable.contentY = 0;
+                folderList.positionViewAtIndex(modelIndex, ListView.Contain);
+                previewFlickable.forceActiveFocus();
+                Qt.callLater(restoreCurrentImagePosition);
             }
 
             function showThisPc() {
-                saveCurrentImageState()
-                thisPcModel.clear()
-                var drives = fileSystemNavigator.availableWindowsDrives()
+                saveCurrentImageState();
+                thisPcModel.clear();
+                var drives = fileSystemNavigator.availableWindowsDrives();
                 for (var i = 0; i < drives.length; ++i)
-                    thisPcModel.append(drives[i])
-                showingThisPc = true
-                selectedImageUrl = ""
-                selectedImageIndex = -1
-                selectedModelIndex = -1
-                selectedImageHash = ""
-                selectedImageStateIndex = -1
-                pageNumberInput.text = "0"
-                fullview.rotationAngle = 0
-                fullview.zoomFactor = 1
-                foundImageCount = 0
+                    thisPcModel.append(drives[i]);
+                showingThisPc = true;
+                selectedImageUrl = "";
+                selectedImageIndex = -1;
+                selectedModelIndex = -1;
+                selectedImageHash = "";
+                selectedImageStateIndex = -1;
+                pageNumberInput.text = "0";
+                fullview.rotationAngle = 0;
+                fullview.zoomFactor = 1;
+                foundImageCount = 0;
             }
 
             function isWindowsDriveRoot() {
-                return Qt.platform.os === "windows" &&
-                    /^file:\/\/\/[a-zA-Z]:\/?$/.test(folderModel.folder.toString())
+                return Qt.platform.os === "windows" && /^file:\/\/\/[a-zA-Z]:\/?$/.test(folderModel.folder.toString());
             }
 
             FileSystemNavigator {
@@ -597,36 +560,38 @@ Item {
                 target: folderModel
 
                 function onCountChanged() {
-                    sources.updateFoundImageCount()
+                    sources.updateFoundImageCount();
                 }
 
                 function onStatusChanged() {
                     if (folderModel.status === FolderListModel.Ready)
-                        sources.updateFoundImageCount()
+                        sources.updateFoundImageCount();
                 }
 
                 function onDataChanged() {
-                    sources.updateFoundImageCount()
+                    sources.updateFoundImageCount();
                 }
 
                 function onFolderChanged() {
-                    sources.saveCurrentImageState()
-                    sources.selectedImageUrl = ""
-                    sources.selectedImageIndex = -1
-                    sources.selectedModelIndex = -1
-                    sources.selectedImageHash = ""
-                    sources.selectedImageStateIndex = -1
-                    pageNumberInput.text = "0"
-                    fullview.rotationAngle = 0
-                    fullview.zoomFactor = 1
-                    previewFlickable.contentX = 0
-                    previewFlickable.contentY = 0
+                    sources.saveCurrentImageState();
+                    sources.selectedImageUrl = "";
+                    sources.selectedImageIndex = -1;
+                    sources.selectedModelIndex = -1;
+                    sources.selectedImageHash = "";
+                    sources.selectedImageStateIndex = -1;
+                    sources.selectImageAt(0)
+
+                    pageNumberInput.text = "0";
+                    fullview.rotationAngle = 0;
+                    fullview.zoomFactor = 1;
+                    previewFlickable.contentX = 0;
+                    previewFlickable.contentY = 0;
                 }
             }
 
             Component.onCompleted: {
                 if (sources.showingThisPc)
-                    sources.showThisPc()
+                    sources.showThisPc();
             }
 
             ColumnLayout {
@@ -652,17 +617,15 @@ Item {
                         icon.color: "#64748b"
                         Layout.minimumWidth: 36
                         Layout.preferredWidth: 36
-                        visible: !sources.showingThisPc &&
-                            (sources.isWindowsDriveRoot() ||
-                             folderModel.parentFolder.toString() !== folderModel.folder.toString())
+                        visible: !sources.showingThisPc && (sources.isWindowsDriveRoot() || folderModel.parentFolder.toString() !== folderModel.folder.toString())
                         Accessible.name: "Go to parent folder"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
                         onClicked: {
                             if (sources.isWindowsDriveRoot())
-                                sources.showThisPc()
+                                sources.showThisPc();
                             else
-                                folderModel.folder = folderModel.parentFolder
+                                folderModel.folder = folderModel.parentFolder;
                         }
                     }
 
@@ -672,7 +635,6 @@ Item {
                         font.pixelSize: 11
                         visible: !sources.showingThisPc
                     }
-
                 }
 
                 Label {
@@ -704,33 +666,19 @@ Item {
 
                         width: folderList.width
                         readonly property string imagePath: fileItem.fileURL.toString()
-                        readonly property string imageHash: sources.showingThisPc ||
-                            folderModel.isFolder(fileItem.index) ? "" :
-                            fileSystemNavigator.imageStateHash(fileItem.fileURL)
-                        readonly property bool isSelectedImage: !sources.showingThisPc &&
-                            !folderModel.isFolder(index) &&
-                            fileItem.imagePath === sources.selectedImageUrl.toString()
-                        readonly property int cachedRotation: isSelectedImage
-                            ? fullview.rotationAngle
-                            : sources.rotationForImage(fileItem.imagePath, fileItem.imageHash)
+                        readonly property string imageHash: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "" : fileSystemNavigator.imageStateHash(fileItem.fileURL)
+                        readonly property bool isSelectedImage: !sources.showingThisPc && !folderModel.isFolder(index) && fileItem.imagePath === sources.selectedImageUrl.toString()
+                        readonly property int cachedRotation: isSelectedImage ? fullview.rotationAngle : sources.rotationForImage(fileItem.imagePath, fileItem.imageHash)
                         readonly property bool isRotated: cachedRotation % 180 !== 0
-                        readonly property real previewHeight: Math.max(
-                            sources.minimumPreviewHeight,
-                            thumbnail.implicitWidth > 0
-                                ? (width - 4) * (isRotated
-                                    ? thumbnail.implicitWidth / thumbnail.implicitHeight
-                                    : thumbnail.implicitHeight / thumbnail.implicitWidth)
-                                : sources.minimumPreviewHeight)
-                        height: sources.showingThisPc ? 48
-                            : folderModel.isFolder(index) ? 48 : previewHeight + 34
+                        readonly property real previewHeight: Math.max(sources.minimumPreviewHeight, thumbnail.implicitWidth > 0 ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight : thumbnail.implicitHeight / thumbnail.implicitWidth) : sources.minimumPreviewHeight)
+                        height: sources.showingThisPc ? 48 : folderModel.isFolder(index) ? 48 : previewHeight + 34
 
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
                             border.width: fileItem.isSelectedImage ? 2 : 0
                             border.color: "#1976d2"
-                            color: sources.showingThisPc || folderModel.isFolder(fileItem.index)
-                                ? "#f1f5f9" : "#e2e8f0"
+                            color: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -762,11 +710,9 @@ Item {
                                     Layout.leftMargin: 6
                                     Layout.rightMargin: 6
                                     Layout.bottomMargin: 4
-                                    Layout.preferredHeight: sources.showingThisPc ||
-                                        folderModel.isFolder(fileItem.index) ? 48 : implicitHeight
+                                    Layout.preferredHeight: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? 48 : implicitHeight
                                     verticalAlignment: Text.AlignVCenter
-                                    text: sources.showingThisPc || folderModel.isFolder(fileItem.index)
-                                        ? "\uD83D\uDCC1  " + fileItem.fileName : fileItem.fileName
+                                    text: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "\uD83D\uDCC1  " + fileItem.fileName : fileItem.fileName
                                     elide: Text.ElideMiddle
                                     color: "#334155"
                                 }
@@ -777,12 +723,12 @@ Item {
                             anchors.fill: parent
                             onClicked: {
                                 if (sources.showingThisPc) {
-                                    sources.showingThisPc = false
-                                    folderModel.folder = fileItem.fileURL
+                                    sources.showingThisPc = false;
+                                    folderModel.folder = fileItem.fileURL;
                                 } else if (folderModel.isFolder(fileItem.index)) {
-                                    folderModel.folder = fileItem.fileURL
+                                    folderModel.folder = fileItem.fileURL;
                                 } else {
-                                    sources.selectImageByModelIndex(fileItem.index)
+                                    sources.selectImageByModelIndex(fileItem.index);
                                 }
                             }
                         }
