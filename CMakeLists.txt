@@ -37,6 +37,8 @@ qt_add_qml_module(Q2PhotoPoint
         SOURCES
             src/backend/ApplicationBackend.h
             src/backend/ApplicationBackend.cpp
+            src/backend/FileSystemNavigator.h
+            src/backend/FileSystemNavigator.cpp
 )
 
 set_target_properties(Q2PhotoPoint PROPERTIES

@@ -5,6 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 import Qt.labs.platform
+import Q2PhotoPoint
 
 Item {
     id: root
@@ -141,6 +142,7 @@ Item {
             id: sources
             readonly property int minimumPreviewHeight: 96
             property int foundImageCount: 0
+            property bool showingThisPc: false
 
             function updateFoundImageCount() {
                 var count = 0
@@ -149,6 +151,24 @@ Item {
                         ++count
                 }
                 foundImageCount = count
+            }
+
+            function showThisPc() {
+                thisPcModel.clear()
+                var drives = fileSystemNavigator.availableWindowsDrives()
+                for (var i = 0; i < drives.length; ++i)
+                    thisPcModel.append(drives[i])
+                showingThisPc = true
+                foundImageCount = 0
+            }
+
+            function isWindowsDriveRoot() {
+                return Qt.platform.os === "windows" &&
+                    /^file:\/\/\/[a-zA-Z]:\/?$/.test(folderModel.folder.toString())
+            }
+
+            FileSystemNavigator {
+                id: fileSystemNavigator
             }
 
             FolderListModel {
@@ -162,6 +182,10 @@ Item {
                 showOnlyReadable: true
                 caseSensitive: false
                 sortField: FolderListModel.Name
+            }
+
+            ListModel {
+                id: thisPcModel
             }
 
             Connections {
@@ -181,6 +205,11 @@ Item {
                 }
             }
 
+            Component.onCompleted: {
+                if (sources.showingThisPc)
+                    sources.showThisPc()
+            }
+
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 10
@@ -191,7 +220,7 @@ Item {
                     spacing: 6
 
                     Label {
-                        text: "Current folder"
+                        text: sources.showingThisPc ? "This PC" : "Current folder"
                         font.bold: true
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
@@ -204,17 +233,25 @@ Item {
                         icon.color: "#64748b"
                         Layout.minimumWidth: 36
                         Layout.preferredWidth: 36
-                        visible: folderModel.parentFolder.toString() !== folderModel.folder.toString()
+                        visible: !sources.showingThisPc &&
+                            (sources.isWindowsDriveRoot() ||
+                             folderModel.parentFolder.toString() !== folderModel.folder.toString())
                         Accessible.name: "Go to parent folder"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
-                        onClicked: folderModel.folder = folderModel.parentFolder
+                        onClicked: {
+                            if (sources.isWindowsDriveRoot())
+                                sources.showThisPc()
+                            else
+                                folderModel.folder = folderModel.parentFolder
+                        }
                     }
 
                     Label {
                         text: sources.foundImageCount + " images"
                         color: "#64748b"
                         font.pixelSize: 11
+                        visible: !sources.showingThisPc
                     }
 
                 }
@@ -225,6 +262,7 @@ Item {
                     font.pixelSize: 12
                     elide: Text.ElideMiddle
                     Layout.fillWidth: true
+                    visible: !sources.showingThisPc
                 }
 
                 ListView {
@@ -234,7 +272,7 @@ Item {
                     clip: true
                     spacing: 6
                     cacheBuffer: height
-                    model: folderModel
+                    model: sources.showingThisPc ? thisPcModel : folderModel
                     ScrollBar.vertical: ScrollBar {
                         policy: ScrollBar.AsNeeded
                     }
@@ -243,7 +281,7 @@ Item {
                         id: fileItem
                         required property int index
                         required property string fileName
-                        required property url fileURL
+                        required property var fileURL
 
                         width: folderList.width
                         readonly property real previewHeight: Math.max(
@@ -251,12 +289,14 @@ Item {
                             thumbnail.implicitWidth > 0
                                 ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth
                                 : sources.minimumPreviewHeight)
-                        height: folderModel.isFolder(index) ? 48 : previewHeight + 34
+                        height: sources.showingThisPc ? 48
+                            : folderModel.isFolder(index) ? 48 : previewHeight + 34
 
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
-                            color: folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
+                            color: sources.showingThisPc || folderModel.isFolder(fileItem.index)
+                                ? "#f1f5f9" : "#e2e8f0"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -265,13 +305,13 @@ Item {
                                 Item {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: fileItem.previewHeight
-                                    visible: !folderModel.isFolder(fileItem.index)
+                                    visible: !sources.showingThisPc && !folderModel.isFolder(fileItem.index)
 
                                     Image {
                                         id: thumbnail
                                         anchors.fill: parent
                                         anchors.margins: 2
-                                        source: fileItem.fileURL
+                                        source: sources.showingThisPc ? "" : fileItem.fileURL
                                         asynchronous: true
                                         cache: true
                                         sourceSize.width: width
@@ -284,9 +324,11 @@ Item {
                                     Layout.leftMargin: 6
                                     Layout.rightMargin: 6
                                     Layout.bottomMargin: 4
-                                    Layout.preferredHeight: folderModel.isFolder(fileItem.index) ? 48 : implicitHeight
+                                    Layout.preferredHeight: sources.showingThisPc ||
+                                        folderModel.isFolder(fileItem.index) ? 48 : implicitHeight
                                     verticalAlignment: Text.AlignVCenter
-                                    text: folderModel.isFolder(fileItem.index) ? "\uD83D\uDCC1  " + fileItem.fileName : fileItem.fileName
+                                    text: sources.showingThisPc || folderModel.isFolder(fileItem.index)
+                                        ? "\uD83D\uDCC1  " + fileItem.fileName : fileItem.fileName
                                     elide: Text.ElideMiddle
                                     color: "#334155"
                                 }
@@ -296,8 +338,12 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
-                                if (folderModel.isFolder(fileItem.index))
+                                if (sources.showingThisPc) {
+                                    sources.showingThisPc = false
                                     folderModel.folder = fileItem.fileURL
+                                } else if (folderModel.isFolder(fileItem.index)) {
+                                    folderModel.folder = fileItem.fileURL
+                                }
                             }
                         }
                     }
