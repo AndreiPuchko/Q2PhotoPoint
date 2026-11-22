@@ -221,7 +221,14 @@ Item {
                             Layout.fillWidth: true
                         }
                         Button {
-                            text: "-"
+                            icon.source: "remove.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.selectedImageIndex >= 0 &&
                                 fullview.zoomFactor > fullview.minimumZoomFactor
                             Accessible.name: "Zoom out"
@@ -231,7 +238,14 @@ Item {
                             text: Math.round(fullview.zoomFactor * 100) + "%"
                         }
                         Button {
-                            text: "+"
+                            icon.source: "add.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.selectedImageIndex >= 0 &&
                                 fullview.zoomFactor < fullview.maximumZoomFactor
                             Accessible.name: "Zoom in"
@@ -249,14 +263,28 @@ Item {
                         }
                         Button {
                             id: firstPageButton
-                            text: "|<"
+                            icon.source: "first.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.foundImageCount > 0
                             Accessible.name: "First image"
                             onClicked: sources.selectImageAt(0)
                         }
                         Button {
                             id: previousPageButton
-                            text: "<"
+                            icon.source: "previous.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.selectedImageIndex > 0
                             Accessible.name: "Previous image"
                             onClicked: sources.selectImageAt(sources.selectedImageIndex - 1)
@@ -291,7 +319,14 @@ Item {
                         }
                         Button {
                             id: nextPageButton
-                            text: ">"
+                            icon.source: "next.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.foundImageCount > 0 &&
                                 sources.selectedImageIndex < sources.foundImageCount - 1
                             Accessible.name: "Next image"
@@ -300,14 +335,28 @@ Item {
                         }
                         Button {
                             id: lastPageButton
-                            text: ">|"
+                            icon.source: "last.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.foundImageCount > 0
                             Accessible.name: "Last image"
                             onClicked: sources.selectImageAt(sources.foundImageCount - 1)
                         }
                         Button {
                             id: rotatePageButton
-                            text: "\u21BB"
+                            icon.source: "rotate.svg"
+                            icon.width: 18
+                            icon.height: 18
+                            icon.color: "#2E39B3"
+                            Layout.minimumWidth: 32
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
+                            padding: 4
                             enabled: sources.selectedImageIndex >= 0
                             Accessible.name: "Rotate image"
                             onClicked: fullview.rotateSelectedImage()

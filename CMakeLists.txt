@@ -33,6 +33,13 @@ qt_add_qml_module(Q2PhotoPoint
             src/qml/pages/PhotoSelectionPage.qml
         RESOURCES
             src/qml/pages/folder-up.svg
+            src/qml/pages/first.svg
+            src/qml/pages/previous.svg
+            src/qml/pages/next.svg
+            src/qml/pages/last.svg
+            src/qml/pages/rotate.svg
+            src/qml/pages/add.svg
+            src/qml/pages/remove.svg
         NO_CACHEGEN
         SOURCES
             src/backend/ApplicationBackend.h
