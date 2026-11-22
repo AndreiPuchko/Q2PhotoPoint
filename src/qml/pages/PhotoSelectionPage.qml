@@ -53,13 +53,34 @@ Item {
             readonly property real minimumZoomFactor: 1
             readonly property real maximumZoomFactor: 8
             readonly property real zoomStep: 1.25
+            property int rotationAngle: 0
 
             function zoomIn() {
+                if (sources.selectedImageIndex < 0)
+                    return
                 zoomFactor = Math.min(maximumZoomFactor, zoomFactor * zoomStep)
+                sources.saveCurrentImageState()
+                previewFlickable.forceActiveFocus()
             }
 
             function zoomOut() {
+                if (sources.selectedImageIndex < 0)
+                    return
                 zoomFactor = Math.max(minimumZoomFactor, zoomFactor / zoomStep)
+                sources.saveCurrentImageState()
+                previewFlickable.forceActiveFocus()
+            }
+
+            function rotateSelectedImage() {
+                if (sources.selectedImageIndex < 0)
+                    return
+
+                rotationAngle = (rotationAngle + 90) % 360
+                previewFlickable.contentX = 0
+                previewFlickable.contentY = 0
+                sources.saveCurrentImageState()
+                folderList.positionViewAtIndex(sources.selectedModelIndex, ListView.Contain)
+                previewFlickable.forceActiveFocus()
             }
 
             ColumnLayout {
@@ -86,8 +107,8 @@ Item {
                         clip: true
                         focus: false
                         boundsBehavior: Flickable.StopAtBounds
-                        contentWidth: Math.max(width, selectedPreview.width)
-                        contentHeight: Math.max(height, selectedPreview.height)
+                        contentWidth: Math.max(width, selectedPreview.rotatedWidth)
+                        contentHeight: Math.max(height, selectedPreview.rotatedHeight)
 
                         Keys.onPressed: function(event) {
                             if (event.key === Qt.Key_Plus || event.text === "+") {
@@ -109,9 +130,16 @@ Item {
                             fillMode: Image.PreserveAspectFit
 
                             readonly property real fitScale: implicitWidth > 0 && implicitHeight > 0
-                                ? Math.min(previewFlickable.width / implicitWidth,
-                                           previewFlickable.height / implicitHeight)
+                                ? Math.min(
+                                    previewFlickable.width / (fullview.rotationAngle % 180 === 0
+                                        ? implicitWidth : implicitHeight),
+                                    previewFlickable.height / (fullview.rotationAngle % 180 === 0
+                                        ? implicitHeight : implicitWidth))
                                 : 1
+                            readonly property real rotatedWidth: fullview.rotationAngle % 180 === 0
+                                ? width : height
+                            readonly property real rotatedHeight: fullview.rotationAngle % 180 === 0
+                                ? height : width
                             width: implicitWidth > 0
                                 ? implicitWidth * fitScale * fullview.zoomFactor
                                 : previewFlickable.width
@@ -120,6 +148,13 @@ Item {
                                 : previewFlickable.height
                             x: Math.max(0, (previewFlickable.contentWidth - width) / 2)
                             y: Math.max(0, (previewFlickable.contentHeight - height) / 2)
+                            rotation: fullview.rotationAngle
+                            transformOrigin: Item.Center
+
+                            onStatusChanged: {
+                                if (status === Image.Ready)
+                                    sources.restoreCurrentImagePosition()
+                            }
                         }
 
                         WheelHandler {
@@ -144,6 +179,7 @@ Item {
                                         previewFlickable.contentY = Math.max(
                                             0, Math.min(previewFlickable.contentHeight - previewFlickable.height,
                                                         previewFlickable.contentY - deltaY))
+                                    sources.saveCurrentImageState()
                                 }
                                 event.accepted = true
                             }
@@ -155,6 +191,8 @@ Item {
                         ScrollBar.horizontal: ScrollBar {
                             policy: ScrollBar.AsNeeded
                         }
+
+                        onMovementEnded: sources.saveCurrentImageState()
                     }
 
                     Label {
@@ -165,35 +203,118 @@ Item {
                     }
                 }
 
-                RowLayout {
-                    Button {
-                        text: "Rotate"
-                    }
-                    Button {
-                        text: "Crop"
-                    }
-                    Button {
-                        text: "Adjust"
-                    }
-                    Item {
+                ColumnLayout {
+                    id: fullviewToolbar
+                    Layout.fillWidth: true
+                    spacing: 2
+
+                    RowLayout {
                         Layout.fillWidth: true
+
+                        Button {
+                            text: "Crop"
+                        }
+                        Button {
+                            text: "Adjust"
+                        }
+                        Item {
+                            Layout.fillWidth: true
+                        }
+                        Button {
+                            text: "-"
+                            enabled: sources.selectedImageIndex >= 0 &&
+                                fullview.zoomFactor > fullview.minimumZoomFactor
+                            Accessible.name: "Zoom out"
+                            onClicked: fullview.zoomOut()
+                        }
+                        Label {
+                            text: Math.round(fullview.zoomFactor * 100) + "%"
+                        }
+                        Button {
+                            text: "+"
+                            enabled: sources.selectedImageIndex >= 0 &&
+                                fullview.zoomFactor < fullview.maximumZoomFactor
+                            Accessible.name: "Zoom in"
+                            onClicked: fullview.zoomIn()
+                        }
                     }
-                    Button {
-                        text: "-"
-                        enabled: sources.selectedImageUrl.toString() !== "" &&
-                            fullview.zoomFactor > fullview.minimumZoomFactor
-                        Accessible.name: "Zoom out"
-                        onClicked: fullview.zoomOut()
-                    }
-                    Label {
-                        text: Math.round(fullview.zoomFactor * 100) + "%"
-                    }
-                    Button {
-                        text: "+"
-                        enabled: sources.selectedImageUrl.toString() !== "" &&
-                            fullview.zoomFactor < fullview.maximumZoomFactor
-                        Accessible.name: "Zoom in"
-                        onClicked: fullview.zoomIn()
+
+                    RowLayout {
+                        id: pageNavigationLayout
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Item {
+                            Layout.fillWidth: true
+                        }
+                        Button {
+                            id: firstPageButton
+                            text: "|<"
+                            enabled: sources.foundImageCount > 0
+                            Accessible.name: "First image"
+                            onClicked: sources.selectImageAt(0)
+                        }
+                        Button {
+                            id: previousPageButton
+                            text: "<"
+                            enabled: sources.selectedImageIndex > 0
+                            Accessible.name: "Previous image"
+                            onClicked: sources.selectImageAt(sources.selectedImageIndex - 1)
+                        }
+                        TextField {
+                            id: pageNumberInput
+                            Layout.preferredWidth: 48
+                            Layout.minimumWidth: 40
+                            text: "0"
+                            horizontalAlignment: TextInput.AlignHCenter
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator {
+                                bottom: 0
+                                top: Math.max(1, sources.foundImageCount)
+                            }
+                            enabled: sources.foundImageCount > 0
+                            Accessible.name: "Image number"
+                            onAccepted: {
+                                var requestedPage = Number(text)
+                                if (requestedPage >= 1 && requestedPage <= sources.foundImageCount) {
+                                    sources.selectImageAt(requestedPage - 1)
+                                } else {
+                                    text = sources.selectedImageIndex >= 0
+                                        ? String(sources.selectedImageIndex + 1) : "0"
+                                }
+                                previewFlickable.forceActiveFocus()
+                            }
+                        }
+                        Label {
+                            text: "/ " + sources.foundImageCount
+                            color: "#64748b"
+                        }
+                        Button {
+                            id: nextPageButton
+                            text: ">"
+                            enabled: sources.foundImageCount > 0 &&
+                                sources.selectedImageIndex < sources.foundImageCount - 1
+                            Accessible.name: "Next image"
+                            onClicked: sources.selectImageAt(
+                                sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1)
+                        }
+                        Button {
+                            id: lastPageButton
+                            text: ">|"
+                            enabled: sources.foundImageCount > 0
+                            Accessible.name: "Last image"
+                            onClicked: sources.selectImageAt(sources.foundImageCount - 1)
+                        }
+                        Button {
+                            id: rotatePageButton
+                            text: "\u21BB"
+                            enabled: sources.selectedImageIndex >= 0
+                            Accessible.name: "Rotate image"
+                            onClicked: fullview.rotateSelectedImage()
+                        }
+                        Item {
+                            Layout.fillWidth: true
+                        }
                     }
                 }
             }
@@ -254,6 +375,10 @@ Item {
             property int foundImageCount: 0
             property bool showingThisPc: false
             property url selectedImageUrl: ""
+            property int selectedImageIndex: -1
+            property int selectedModelIndex: -1
+            property string selectedImageHash: ""
+            property int selectedImageStateIndex: -1
 
             function updateFoundImageCount() {
                 var count = 0
@@ -264,13 +389,127 @@ Item {
                 foundImageCount = count
             }
 
+            function imageStateIndexFor(path, hash) {
+                for (var i = 0; i < imageStateCache.count; ++i) {
+                    var state = imageStateCache.get(i)
+                    if (state.path !== path)
+                        continue
+
+                    if (state.hash !== hash) {
+                        imageStateCache.setProperty(i, "hash", hash)
+                        imageStateCache.setProperty(i, "rotation", 0)
+                        imageStateCache.setProperty(i, "zoomFactor", 1)
+                        imageStateCache.setProperty(i, "scrollX", 0)
+                        imageStateCache.setProperty(i, "scrollY", 0)
+                    }
+                    return i
+                }
+
+                imageStateCache.append({
+                    path: path,
+                    hash: hash,
+                    rotation: 0,
+                    zoomFactor: 1,
+                    scrollX: 0,
+                    scrollY: 0
+                })
+                return imageStateCache.count - 1
+            }
+
+            function rotationForImage(path, hash) {
+                for (var i = 0; i < imageStateCache.count; ++i) {
+                    var state = imageStateCache.get(i)
+                    if (state.path === path && state.hash === hash)
+                        return state.rotation
+                }
+                return 0
+            }
+
+            function saveCurrentImageState() {
+                if (selectedImageStateIndex < 0)
+                    return
+
+                var state = imageStateCache.get(selectedImageStateIndex)
+                if (state.path !== selectedImageUrl.toString() || state.hash !== selectedImageHash)
+                    return
+
+                imageStateCache.setProperty(selectedImageStateIndex, "rotation", fullview.rotationAngle)
+                imageStateCache.setProperty(selectedImageStateIndex, "zoomFactor", fullview.zoomFactor)
+                imageStateCache.setProperty(selectedImageStateIndex, "scrollX", previewFlickable.contentX)
+                imageStateCache.setProperty(selectedImageStateIndex, "scrollY", previewFlickable.contentY)
+            }
+
+            function restoreCurrentImagePosition() {
+                if (selectedImageStateIndex < 0 || selectedPreview.status !== Image.Ready)
+                    return
+
+                var state = imageStateCache.get(selectedImageStateIndex)
+                previewFlickable.contentX = Math.max(
+                    0, Math.min(state.scrollX, previewFlickable.contentWidth - previewFlickable.width))
+                previewFlickable.contentY = Math.max(
+                    0, Math.min(state.scrollY, previewFlickable.contentHeight - previewFlickable.height))
+            }
+
+            function selectImageAt(imageIndex) {
+                if (imageIndex < 0 || imageIndex >= foundImageCount)
+                    return
+
+                var currentImageIndex = 0
+                for (var modelIndex = 0; modelIndex < folderModel.count; ++modelIndex) {
+                    if (folderModel.isFolder(modelIndex))
+                        continue
+                    if (currentImageIndex === imageIndex) {
+                        selectImageByModelIndex(modelIndex)
+                        return
+                    }
+                    ++currentImageIndex
+                }
+            }
+
+            function selectImageByModelIndex(modelIndex) {
+                if (modelIndex < 0 || modelIndex >= folderModel.count ||
+                    folderModel.isFolder(modelIndex))
+                    return
+
+                saveCurrentImageState()
+
+                var imageIndex = 0
+                for (var i = 0; i < modelIndex; ++i) {
+                    if (!folderModel.isFolder(i))
+                        ++imageIndex
+                }
+
+                selectedImageIndex = imageIndex
+                selectedModelIndex = modelIndex
+                selectedImageUrl = folderModel.get(modelIndex, "fileURL")
+                selectedImageHash = fileSystemNavigator.imageStateHash(selectedImageUrl)
+                selectedImageStateIndex = imageStateIndexFor(
+                    selectedImageUrl.toString(), selectedImageHash)
+                var state = imageStateCache.get(selectedImageStateIndex)
+                fullview.rotationAngle = state.rotation
+                fullview.zoomFactor = state.zoomFactor
+                pageNumberInput.text = String(imageIndex + 1)
+                previewFlickable.contentX = 0
+                previewFlickable.contentY = 0
+                folderList.positionViewAtIndex(modelIndex, ListView.Contain)
+                previewFlickable.forceActiveFocus()
+                Qt.callLater(restoreCurrentImagePosition)
+            }
+
             function showThisPc() {
+                saveCurrentImageState()
                 thisPcModel.clear()
                 var drives = fileSystemNavigator.availableWindowsDrives()
                 for (var i = 0; i < drives.length; ++i)
                     thisPcModel.append(drives[i])
                 showingThisPc = true
                 selectedImageUrl = ""
+                selectedImageIndex = -1
+                selectedModelIndex = -1
+                selectedImageHash = ""
+                selectedImageStateIndex = -1
+                pageNumberInput.text = "0"
+                fullview.rotationAngle = 0
                 fullview.zoomFactor = 1
                 foundImageCount = 0
             }
@@ -301,6 +540,10 @@ Item {
                 id: thisPcModel
             }
 
+            ListModel {
+                id: imageStateCache
+            }
+
             Connections {
                 target: folderModel
 
@@ -318,7 +561,14 @@ Item {
                 }
 
                 function onFolderChanged() {
+                    sources.saveCurrentImageState()
                     sources.selectedImageUrl = ""
+                    sources.selectedImageIndex = -1
+                    sources.selectedModelIndex = -1
+                    sources.selectedImageHash = ""
+                    sources.selectedImageStateIndex = -1
+                    pageNumberInput.text = "0"
+                    fullview.rotationAngle = 0
                     fullview.zoomFactor = 1
                     previewFlickable.contentX = 0
                     previewFlickable.contentY = 0
@@ -404,13 +654,23 @@ Item {
                         required property var fileURL
 
                         width: folderList.width
+                        readonly property string imagePath: fileItem.fileURL.toString()
+                        readonly property string imageHash: sources.showingThisPc ||
+                            folderModel.isFolder(fileItem.index) ? "" :
+                            fileSystemNavigator.imageStateHash(fileItem.fileURL)
                         readonly property bool isSelectedImage: !sources.showingThisPc &&
                             !folderModel.isFolder(index) &&
-                            fileItem.fileURL.toString() === sources.selectedImageUrl.toString()
+                            fileItem.imagePath === sources.selectedImageUrl.toString()
+                        readonly property int cachedRotation: isSelectedImage
+                            ? fullview.rotationAngle
+                            : sources.rotationForImage(fileItem.imagePath, fileItem.imageHash)
+                        readonly property bool isRotated: cachedRotation % 180 !== 0
                         readonly property real previewHeight: Math.max(
                             sources.minimumPreviewHeight,
                             thumbnail.implicitWidth > 0
-                                ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth
+                                ? (width - 4) * (isRotated
+                                    ? thumbnail.implicitWidth / thumbnail.implicitHeight
+                                    : thumbnail.implicitHeight / thumbnail.implicitWidth)
                                 : sources.minimumPreviewHeight)
                         height: sources.showingThisPc ? 48
                             : folderModel.isFolder(index) ? 48 : previewHeight + 34
@@ -434,13 +694,17 @@ Item {
 
                                     Image {
                                         id: thumbnail
-                                        anchors.fill: parent
-                                        anchors.margins: 2
+                                        width: fileItem.isRotated ? parent.height - 4 : parent.width - 4
+                                        height: fileItem.isRotated ? parent.width - 4 : parent.height - 4
+                                        x: (parent.width - width) / 2
+                                        y: (parent.height - height) / 2
                                         source: sources.showingThisPc ? "" : fileItem.fileURL
                                         asynchronous: true
                                         cache: true
                                         sourceSize.width: width
                                         fillMode: Image.PreserveAspectFit
+                                        rotation: fileItem.cachedRotation
+                                        transformOrigin: Item.Center
                                     }
                                 }
 
@@ -469,11 +733,7 @@ Item {
                                 } else if (folderModel.isFolder(fileItem.index)) {
                                     folderModel.folder = fileItem.fileURL
                                 } else {
-                                    sources.selectedImageUrl = fileItem.fileURL
-                                    fullview.zoomFactor = 1
-                                    previewFlickable.contentX = 0
-                                    previewFlickable.contentY = 0
-                                    previewFlickable.forceActiveFocus()
+                                    sources.selectImageByModelIndex(fileItem.index)
                                 }
                             }
                         }

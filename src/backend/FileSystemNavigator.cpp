@@ -1,5 +1,7 @@
 #include "FileSystemNavigator.h"
 
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QStorageInfo>
@@ -53,4 +55,24 @@ QVariantList FileSystemNavigator::availableWindowsDrives() const
 #endif
 
     return drives;
+}
+
+QString FileSystemNavigator::imageStateHash(const QUrl &url) const
+{
+    const QFileInfo fileInfo(url.toLocalFile());
+    QString path = fileInfo.exists()
+        ? fileInfo.absoluteFilePath()
+        : url.toString(QUrl::FullyEncoded);
+#ifdef Q_OS_WIN
+    path = path.toCaseFolded();
+#endif
+
+    QByteArray identity = path.toUtf8();
+    identity.append('\0');
+    identity.append(QByteArray::number(fileInfo.size()));
+    identity.append('\0');
+    identity.append(QByteArray::number(fileInfo.lastModified().toMSecsSinceEpoch()));
+
+    return QString::fromLatin1(
+        QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex());
 }

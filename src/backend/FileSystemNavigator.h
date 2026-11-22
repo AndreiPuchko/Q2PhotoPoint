@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 #include <QVariantList>
+#include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
 class FileSystemNavigator : public QObject
@@ -13,4 +15,5 @@ public:
     explicit FileSystemNavigator(QObject *parent = nullptr);
 
     Q_INVOKABLE QVariantList availableWindowsDrives() const;
+    Q_INVOKABLE QString imageStateHash(const QUrl &url) const;
 };
