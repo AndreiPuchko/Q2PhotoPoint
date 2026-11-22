@@ -54,9 +54,12 @@ Item {
             readonly property real maximumZoomFactor: 8
             readonly property real zoomStep: 1.25
             property int rotationAngle: 0
+            property url currentImageUrl: ""
+            property string currentImageHash: ""
+            property int currentImageStateIndex: -1
 
             function zoomIn() {
-                if (sources.selectedImageIndex < 0)
+                if (currentImageStateIndex < 0)
                     return;
                 zoomFactor = Math.min(maximumZoomFactor, zoomFactor * zoomStep);
                 sources.saveCurrentImageState();
@@ -64,7 +67,7 @@ Item {
             }
 
             function zoomOut() {
-                if (sources.selectedImageIndex < 0)
+                if (currentImageStateIndex < 0)
                     return;
                 zoomFactor = Math.max(minimumZoomFactor, zoomFactor / zoomStep);
                 sources.saveCurrentImageState();
@@ -72,17 +75,20 @@ Item {
             }
 
             function rotateSelectedImage(keepSourceFocus) {
-                if (sources.selectedImageIndex < 0)
+                if (currentImageStateIndex < 0)
                     return;
                 rotationAngle = (rotationAngle + 90) % 360;
                 previewFlickable.contentX = 0;
                 previewFlickable.contentY = 0;
                 sources.saveCurrentImageState();
-                folderList.positionViewAtIndex(sources.selectedModelIndex, ListView.Contain);
-                if (keepSourceFocus)
-                    folderList.forceActiveFocus()
-                else
+                if (keepSourceFocus) {
+                    if (result.navigationActive)
+                        selectedList.forceActiveFocus();
+                    else
+                        folderList.forceActiveFocus();
+                } else {
                     previewFlickable.forceActiveFocus()
+                }
             }
 
             ColumnLayout {
@@ -121,11 +127,10 @@ Item {
                                 event.accepted = true;
                             }
                         }
-
                         Image {
                             id: selectedPreview
-                            visible: sources.selectedImageUrl.toString() !== ""
-                            source: sources.selectedImageUrl
+                            visible: fullview.currentImageUrl.toString() !== ""
+                            source: fullview.currentImageUrl
                             asynchronous: true
                             cache: true
                             sourceSize.width: Math.ceil(previewFlickable.width * fullview.zoomFactor)
@@ -157,11 +162,10 @@ Item {
                                     else if (event.angleDelta.y < 0 || event.pixelDelta.y < 0)
                                         fullview.zoomOut();
                                 } else {
-                                    if (event.angleDelta.y < 0) {
-                                        sources.selectImageAt(sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1);
-                                    } else if (event.angleDelta.y > 0) {
-                                        sources.selectImageAt(sources.selectedImageIndex - 1);
-                                    }
+                                    if (event.angleDelta.y < 0)
+                                        sources.navigateCurrentBy(1);
+                                    else if (event.angleDelta.y > 0)
+                                        sources.navigateCurrentBy(-1);
                                 }
                                 event.accepted = true;
                             }
@@ -181,7 +185,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Select a photo to preview!"
                         color: "#94a3b8"
-                        visible: sources.selectedImageUrl.toString() === ""
+                        visible: fullview.currentImageUrl.toString() === ""
                     }
                 }
 
@@ -211,7 +215,8 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex >= 0 && fullview.zoomFactor > fullview.minimumZoomFactor
+                            enabled: fullview.currentImageStateIndex >= 0 &&
+                                fullview.zoomFactor > fullview.minimumZoomFactor
                             Accessible.name: "Zoom out"
                             onClicked: fullview.zoomOut()
                         }
@@ -227,7 +232,8 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex >= 0 && fullview.zoomFactor < fullview.maximumZoomFactor
+                            enabled: fullview.currentImageStateIndex >= 0 &&
+                                fullview.zoomFactor < fullview.maximumZoomFactor
                             Accessible.name: "Zoom in"
                             onClicked: fullview.zoomIn()
                         }
@@ -251,9 +257,9 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.foundImageCount > 0
+                            enabled: sources.navigationCount > 0
                             Accessible.name: "First image"
-                            onClicked: sources.selectImageAt(0)
+                            onClicked: sources.navigateCurrentTo(0)
                         }
                         Button {
                             id: previousPageButton
@@ -265,9 +271,9 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex > 0
+                            enabled: sources.navigationIndex > 0
                             Accessible.name: "Previous image"
-                            onClicked: sources.selectImageAt(sources.selectedImageIndex - 1)
+                            onClicked: sources.navigateCurrentTo(sources.navigationIndex - 1)
                         }
                         TextField {
                             id: pageNumberInput
@@ -278,22 +284,22 @@ Item {
                             inputMethodHints: Qt.ImhDigitsOnly
                             validator: IntValidator {
                                 bottom: 0
-                                top: Math.max(1, sources.foundImageCount)
+                                top: Math.max(1, sources.navigationCount)
                             }
-                            enabled: sources.foundImageCount > 0
+                            enabled: sources.navigationCount > 0
                             Accessible.name: "Image number"
                             onAccepted: {
                                 var requestedPage = Number(text);
-                                if (requestedPage >= 1 && requestedPage <= sources.foundImageCount) {
-                                    sources.selectImageAt(requestedPage - 1);
+                                if (requestedPage >= 1 && requestedPage <= sources.navigationCount) {
+                                    sources.navigateCurrentTo(requestedPage - 1);
                                 } else {
-                                    text = sources.selectedImageIndex >= 0 ? String(sources.selectedImageIndex + 1) : "0";
+                                    text = sources.navigationIndex >= 0 ? String(sources.navigationIndex + 1) : "0";
                                 }
                                 previewFlickable.forceActiveFocus();
                             }
                         }
                         Label {
-                            text: "/ " + sources.foundImageCount
+                            text: "/ " + sources.navigationCount
                             color: "#64748b"
                         }
                         Button {
@@ -306,9 +312,11 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.foundImageCount > 0 && sources.selectedImageIndex < sources.foundImageCount - 1
+                            enabled: sources.navigationCount > 0 &&
+                                sources.navigationIndex < sources.navigationCount - 1
                             Accessible.name: "Next image"
-                            onClicked: sources.selectImageAt(sources.selectedImageIndex < 0 ? 0 : sources.selectedImageIndex + 1)
+                            onClicked: sources.navigateCurrentTo(
+                                sources.navigationIndex < 0 ? 0 : sources.navigationIndex + 1)
                         }
                         Button {
                             id: lastPageButton
@@ -320,9 +328,9 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.foundImageCount > 0
+                            enabled: sources.navigationCount > 0
                             Accessible.name: "Last image"
-                            onClicked: sources.selectImageAt(sources.foundImageCount - 1)
+                            onClicked: sources.navigateCurrentTo(sources.navigationCount - 1)
                         }
                         Button {
                             id: rotatePageButton
@@ -334,7 +342,7 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.selectedImageIndex >= 0
+                            enabled: fullview.currentImageStateIndex >= 0
                             Accessible.name: "Rotate image"
                             onClicked: fullview.rotateSelectedImage()
                         }
@@ -347,12 +355,102 @@ Item {
         }
         // Selected photos
         Rectangle {
+            id: result
             SplitView.preferredWidth: 180
             SplitView.minimumWidth: 110
             SplitView.maximumWidth: 350
 
             color: "white"
             radius: 8
+            property bool navigationActive: false
+            property int selectedPhotoIndex: -1
+
+            function photoIndex(path, hash) {
+                for (var i = 0; i < selectedPhotos.count; ++i) {
+                    var photo = selectedPhotos.get(i);
+                    if (photo.path === path && photo.hash === hash)
+                        return i;
+                }
+                return -1;
+            }
+
+            function selectPhotoAt(index, focusResult) {
+                if (index < 0 || index >= selectedPhotos.count)
+                    return;
+
+                selectedPhotoIndex = index;
+                selectedList.currentIndex = index;
+                var photo = selectedPhotos.get(index);
+                sources.syncSourceSelection(photo.fileURL);
+                sources.showImageInPreview(photo.fileURL, photo.hash);
+                pageNumberInput.text = String(index + 1);
+                if (focusResult !== false) {
+                    navigationActive = true;
+                    selectedList.forceActiveFocus();
+                }
+            }
+
+            function addPhoto(fileURL, fileName, hash, insertionIndex, focusResult) {
+                var path = String(fileURL);
+                if (!hash)
+                    hash = fileSystemNavigator.imageStateHash(fileURL);
+                sources.imageStateIndexFor(path, hash);
+
+                var existingIndex = photoIndex(path, hash);
+                if (existingIndex >= 0) {
+                    var targetIndex = insertionIndex === undefined
+                        ? existingIndex : movePhoto(existingIndex, insertionIndex);
+                    selectPhotoAt(targetIndex, focusResult);
+                    return;
+                }
+
+                var targetIndex = insertionIndex === undefined
+                    ? selectedPhotos.count
+                    : Math.max(0, Math.min(selectedPhotos.count, insertionIndex));
+                selectedPhotos.insert(targetIndex, {
+                    path: path,
+                    hash: hash,
+                    fileName: fileName,
+                    fileURL: path
+                });
+                selectPhotoAt(targetIndex, focusResult);
+            }
+
+            function movePhoto(fromIndex, insertionIndex) {
+                if (fromIndex < 0 || fromIndex >= selectedPhotos.count)
+                    return;
+
+                var targetIndex = Math.max(0, Math.min(selectedPhotos.count, insertionIndex));
+                if (targetIndex > fromIndex)
+                    --targetIndex;
+                if (targetIndex === fromIndex) {
+                    selectPhotoAt(fromIndex, false);
+                    return fromIndex;
+                }
+
+                var photo = selectedPhotos.get(fromIndex);
+                selectedPhotos.remove(fromIndex);
+                selectedPhotos.insert(targetIndex, photo);
+                selectPhotoAt(targetIndex, false);
+                return targetIndex;
+            }
+
+            function insertionIndexAt(y) {
+                var rowHeight = selectedList.width * 0.75;
+                var stride = rowHeight + selectedList.spacing;
+                if (stride <= 0)
+                    return selectedPhotos.count;
+                var position = selectedList.contentY + y;
+                var index = Math.floor(position / stride);
+                var offset = position - index * stride;
+                if (index < selectedPhotos.count && offset > rowHeight / 2)
+                    ++index;
+                return Math.max(0, Math.min(selectedPhotos.count, index));
+            }
+
+            ListModel {
+                id: selectedPhotos
+            }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -365,24 +463,162 @@ Item {
                 }
 
                 Label {
-                    text: "0 photos"
+                    text: selectedPhotos.count + " photos"
                     color: "#64748b"
                     font.pixelSize: 12
                 }
 
-                ListView {
-                    id: selectedList
+                Item {
+                    id: selectedListViewport
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    clip: true
-                    spacing: 8
-                    model: 0
 
-                    delegate: Rectangle {
-                        width: selectedList.width
-                        height: width * 0.75
-                        color: "#e2e8f0"
-                        radius: 4
+                    ListView {
+                        id: selectedList
+                        anchors.fill: parent
+                        clip: true
+                        spacing: 8
+                        model: selectedPhotos
+                        currentIndex: -1
+                        activeFocusOnTab: true
+
+                        function moveCurrentIndexBy(delta) {
+                            if (count === 0)
+                                return;
+                            currentIndex = Math.max(0, Math.min(count - 1,
+                                                              currentIndex < 0 ? 0 : currentIndex + delta));
+                            positionViewAtIndex(currentIndex, ListView.Contain);
+                            result.selectPhotoAt(currentIndex, false);
+                        }
+
+                        Keys.onPressed: function(event) {
+                            var handled = true;
+                            switch (event.key) {
+                            case Qt.Key_Up:
+                                selectedList.moveCurrentIndexBy(-1);
+                                break;
+                            case Qt.Key_Down:
+                                selectedList.moveCurrentIndexBy(1);
+                                break;
+                            case Qt.Key_PageUp:
+                                selectedList.moveCurrentIndexBy(-Math.max(1, Math.floor(height / 120)));
+                                break;
+                            case Qt.Key_PageDown:
+                                selectedList.moveCurrentIndexBy(Math.max(1, Math.floor(height / 120)));
+                                break;
+                            case Qt.Key_Home:
+                                selectedList.currentIndex = 0;
+                                result.selectPhotoAt(0, false);
+                                break;
+                            case Qt.Key_End:
+                                selectedList.currentIndex = selectedList.count - 1;
+                                result.selectPhotoAt(selectedList.currentIndex, false);
+                                break;
+                            case Qt.Key_Right:
+                                fullview.rotateSelectedImage(true);
+                                break;
+                            default:
+                                handled = false;
+                            }
+                            if (handled)
+                                event.accepted = true;
+                        }
+
+                        onActiveFocusChanged: {
+                            if (activeFocus) {
+                                result.navigationActive = true;
+                                if (currentIndex >= 0)
+                                    result.selectPhotoAt(currentIndex, false);
+                            }
+                        }
+
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+
+                        delegate: Item {
+                            id: resultPhoto
+                            required property int index
+                            required property string path
+                            required property string hash
+                            required property string fileName
+                            required property string fileURL
+
+                            width: selectedList.width
+                            height: width * 0.75
+
+                            Drag.active: resultDragHandler.active
+                            Drag.dragType: Drag.Automatic
+                            Drag.keys: ["q2photopoint-photo"]
+                            Drag.supportedActions: Qt.MoveAction
+                            Drag.mimeData: ({
+                                "application/x-q2photopoint-origin": "result",
+                                "application/x-q2photopoint-path": resultPhoto.path,
+                                "application/x-q2photopoint-name": resultPhoto.fileName,
+                                "application/x-q2photopoint-hash": resultPhoto.hash,
+                                "application/x-q2photopoint-index": String(resultPhoto.index)
+                            })
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 4
+                                clip: true
+                                color: "#e2e8f0"
+                                border.width: selectedList.currentIndex === resultPhoto.index ? 2 : 0
+                                border.color: "#1976d2"
+
+                                Image {
+                                    id: resultThumbnail
+                                    property int cachedRotation: sources.rotationForImage(resultPhoto.path, resultPhoto.hash)
+                                    width: cachedRotation % 180 === 0 ? parent.width - 4 : parent.height - 4
+                                    height: cachedRotation % 180 === 0 ? parent.height - 4 : parent.width - 4
+                                    x: (parent.width - width) / 2
+                                    y: (parent.height - height) / 2
+                                    source: resultPhoto.fileURL
+                                    asynchronous: true
+                                    cache: true
+                                    sourceSize.width: width
+                                    fillMode: Image.PreserveAspectFit
+                                    rotation: cachedRotation
+                                    transformOrigin: Item.Center
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    selectedList.currentIndex = resultPhoto.index;
+                                    result.selectPhotoAt(resultPhoto.index, true);
+                                }
+                            }
+
+                            DragHandler {
+                                id: resultDragHandler
+                                target: null
+                            }
+                        }
+                    }
+
+                    DropArea {
+                        anchors.fill: parent
+                        z: 1
+                        keys: ["q2photopoint-photo"]
+
+                        onDropped: function(drop) {
+                            var origin = drop.getDataAsString("application/x-q2photopoint-origin");
+                            var path = drop.getDataAsString("application/x-q2photopoint-path");
+                            var fileName = drop.getDataAsString("application/x-q2photopoint-name");
+                            var hash = drop.getDataAsString("application/x-q2photopoint-hash");
+                            var insertionIndex = result.insertionIndexAt(drop.y);
+                            if (origin === "result") {
+                                result.navigationActive = true;
+                                var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
+                                result.movePhoto(fromIndex, insertionIndex);
+                            } else {
+                                result.addPhoto(path, fileName, hash, insertionIndex, true);
+                            }
+                            drop.acceptProposedAction();
+                        }
                     }
                 }
             }
@@ -403,8 +639,10 @@ Item {
             property url selectedImageUrl: ""
             property int selectedImageIndex: -1
             property int selectedModelIndex: -1
-            property string selectedImageHash: ""
-            property int selectedImageStateIndex: -1
+            readonly property int navigationCount: result.navigationActive
+                ? selectedPhotos.count : foundImageCount
+            readonly property int navigationIndex: result.navigationActive
+                ? result.selectedPhotoIndex : selectedImageIndex
 
             function updateFoundImageCount() {
                 var count = 0;
@@ -450,24 +688,74 @@ Item {
                 return 0;
             }
 
+            function showImageInPreview(fileURL, hash) {
+                saveCurrentImageState();
+                var path = String(fileURL);
+                var imageHash = hash || fileSystemNavigator.imageStateHash(fileURL);
+                var stateIndex = imageStateIndexFor(path, imageHash);
+                var state = imageStateCache.get(stateIndex);
+                fullview.currentImageUrl = fileURL;
+                fullview.currentImageHash = imageHash;
+                fullview.currentImageStateIndex = stateIndex;
+                fullview.rotationAngle = state.rotation;
+                fullview.zoomFactor = state.zoomFactor;
+                previewFlickable.contentX = 0;
+                previewFlickable.contentY = 0;
+                Qt.callLater(restoreCurrentImagePosition);
+            }
+
             function saveCurrentImageState() {
-                if (selectedImageStateIndex < 0)
+                if (fullview.currentImageStateIndex < 0)
                     return;
-                var state = imageStateCache.get(selectedImageStateIndex);
-                if (state.path !== selectedImageUrl.toString() || state.hash !== selectedImageHash)
+                var state = imageStateCache.get(fullview.currentImageStateIndex);
+                if (state.path !== fullview.currentImageUrl.toString() ||
+                    state.hash !== fullview.currentImageHash)
                     return;
-                imageStateCache.setProperty(selectedImageStateIndex, "rotation", fullview.rotationAngle);
-                imageStateCache.setProperty(selectedImageStateIndex, "zoomFactor", fullview.zoomFactor);
-                imageStateCache.setProperty(selectedImageStateIndex, "scrollX", previewFlickable.contentX);
-                imageStateCache.setProperty(selectedImageStateIndex, "scrollY", previewFlickable.contentY);
+                imageStateCache.setProperty(fullview.currentImageStateIndex, "rotation", fullview.rotationAngle);
+                imageStateCache.setProperty(fullview.currentImageStateIndex, "zoomFactor", fullview.zoomFactor);
+                imageStateCache.setProperty(fullview.currentImageStateIndex, "scrollX", previewFlickable.contentX);
+                imageStateCache.setProperty(fullview.currentImageStateIndex, "scrollY", previewFlickable.contentY);
             }
 
             function restoreCurrentImagePosition() {
-                if (selectedImageStateIndex < 0 || selectedPreview.status !== Image.Ready)
+                if (fullview.currentImageStateIndex < 0 || selectedPreview.status !== Image.Ready)
                     return;
-                var state = imageStateCache.get(selectedImageStateIndex);
+                var state = imageStateCache.get(fullview.currentImageStateIndex);
                 previewFlickable.contentX = Math.max(0, Math.min(state.scrollX, previewFlickable.contentWidth - previewFlickable.width));
                 previewFlickable.contentY = Math.max(0, Math.min(state.scrollY, previewFlickable.contentHeight - previewFlickable.height));
+            }
+
+            function syncSourceSelection(fileURL) {
+                var path = String(fileURL);
+                var imageIndex = 0;
+                for (var modelIndex = 0; modelIndex < folderModel.count; ++modelIndex) {
+                    if (folderModel.isFolder(modelIndex))
+                        continue;
+                    if (folderModel.get(modelIndex, "fileURL").toString() === path) {
+                        selectedImageUrl = fileURL;
+                        selectedImageIndex = imageIndex;
+                        selectedModelIndex = modelIndex;
+                        folderList.currentIndex = modelIndex;
+                        folderList.positionViewAtIndex(modelIndex, ListView.Contain);
+                        return;
+                    }
+                    ++imageIndex;
+                }
+                selectedImageUrl = "";
+                selectedImageIndex = -1;
+                selectedModelIndex = -1;
+            }
+
+            function navigateCurrentTo(index) {
+                if (result.navigationActive)
+                    result.selectPhotoAt(index, false);
+                else
+                    selectImageAt(index);
+            }
+
+            function navigateCurrentBy(delta) {
+                var index = navigationIndex < 0 ? 0 : navigationIndex + delta;
+                navigateCurrentTo(index);
             }
 
             function selectImageAt(imageIndex, focusPreview) {
@@ -499,14 +787,8 @@ Item {
                 selectedImageIndex = imageIndex;
                 selectedModelIndex = modelIndex;
                 selectedImageUrl = folderModel.get(modelIndex, "fileURL");
-                selectedImageHash = fileSystemNavigator.imageStateHash(selectedImageUrl);
-                selectedImageStateIndex = imageStateIndexFor(selectedImageUrl.toString(), selectedImageHash);
-                var state = imageStateCache.get(selectedImageStateIndex);
-                fullview.rotationAngle = state.rotation;
-                fullview.zoomFactor = state.zoomFactor;
+                showImageInPreview(selectedImageUrl);
                 pageNumberInput.text = String(imageIndex + 1);
-                previewFlickable.contentX = 0;
-                previewFlickable.contentY = 0;
                 folderList.positionViewAtIndex(modelIndex, ListView.Contain);
                 if (focusPreview !== false)
                     previewFlickable.forceActiveFocus();
@@ -523,8 +805,9 @@ Item {
                 selectedImageUrl = "";
                 selectedImageIndex = -1;
                 selectedModelIndex = -1;
-                selectedImageHash = "";
-                selectedImageStateIndex = -1;
+                fullview.currentImageUrl = "";
+                fullview.currentImageHash = "";
+                fullview.currentImageStateIndex = -1;
                 pageNumberInput.text = "0";
                 fullview.rotationAngle = 0;
                 fullview.zoomFactor = 1;
@@ -582,6 +865,9 @@ Item {
                         sources.updateFoundImageCount();
                         if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
                             folderList.currentIndex = 0;
+                        if (!sources.showingThisPc && sources.selectedImageIndex < 0 &&
+                            sources.foundImageCount > 0)
+                            sources.selectImageAt(0, false);
                     }
                 }
 
@@ -594,16 +880,18 @@ Item {
                     sources.selectedImageUrl = "";
                     sources.selectedImageIndex = -1;
                     sources.selectedModelIndex = -1;
-                    sources.selectedImageHash = "";
-                    sources.selectedImageStateIndex = -1;
+                    fullview.currentImageUrl = "";
+                    fullview.currentImageHash = "";
+                    fullview.currentImageStateIndex = -1;
                     folderList.currentIndex = -1;
-                    sources.selectImageAt(0, false);
-
                     pageNumberInput.text = "0";
                     fullview.rotationAngle = 0;
                     fullview.zoomFactor = 1;
                     previewFlickable.contentX = 0;
                     previewFlickable.contentY = 0;
+                    sources.updateFoundImageCount();
+                    if (folderModel.status === FolderListModel.Ready)
+                        sources.selectImageAt(0, false);
                 }
             }
 
@@ -693,6 +981,15 @@ Item {
                             : Math.max(1, Math.floor(height / 96));
                     }
 
+                    onActiveFocusChanged: {
+                        if (activeFocus) {
+                            result.navigationActive = false;
+                            if (!sources.showingThisPc && currentIndex >= 0 &&
+                                !folderModel.isFolder(currentIndex))
+                                sources.selectImageByModelIndex(currentIndex, false);
+                        }
+                    }
+
                     Keys.onPressed: function(event) {
                         var handled = true;
                         switch (event.key) {
@@ -734,7 +1031,26 @@ Item {
                                     folderModel.folder = drive.fileURL;
                                 } else if (folderModel.isFolder(folderList.currentIndex)) {
                                     folderModel.folder = folderModel.get(folderList.currentIndex, "fileURL");
+                                } else {
+                                    var imageURL = folderModel.get(folderList.currentIndex, "fileURL");
+                                    var imageName = folderModel.get(folderList.currentIndex, "fileName");
+                                    var imageHash = fileSystemNavigator.imageStateHash(imageURL);
+                                    result.addPhoto(imageURL, imageName, imageHash, undefined, false);
                                 }
+                            }
+                            break;
+                        case Qt.Key_Plus:
+                        case Qt.Key_Equal:
+                            if (event.key === Qt.Key_Plus || event.text === "+") {
+                                if (sources.showingThisPc || folderList.currentIndex < 0 ||
+                                    folderModel.isFolder(folderList.currentIndex))
+                                    break;
+                                var imageURL = folderModel.get(folderList.currentIndex, "fileURL");
+                                var imageName = folderModel.get(folderList.currentIndex, "fileName");
+                                var imageHash = fileSystemNavigator.imageStateHash(imageURL);
+                                result.addPhoto(imageURL, imageName, imageHash, undefined, false);
+                            } else {
+                                handled = false;
                             }
                             break;
                         default:
@@ -762,6 +1078,18 @@ Item {
                         readonly property bool isRotated: cachedRotation % 180 !== 0
                         readonly property real previewHeight: Math.max(sources.minimumPreviewHeight, thumbnail.implicitWidth > 0 ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight : thumbnail.implicitHeight / thumbnail.implicitWidth) : sources.minimumPreviewHeight)
                         height: sources.showingThisPc ? 48 : folderModel.isFolder(index) ? 48 : previewHeight + 34
+
+                        Drag.active: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) &&
+                            sourceDragHandler.active
+                        Drag.dragType: Drag.Automatic
+                        Drag.keys: ["q2photopoint-photo"]
+                        Drag.supportedActions: Qt.CopyAction
+                        Drag.mimeData: ({
+                            "application/x-q2photopoint-origin": "source",
+                            "application/x-q2photopoint-path": fileItem.imagePath,
+                            "application/x-q2photopoint-name": fileItem.fileName,
+                            "application/x-q2photopoint-hash": fileItem.imageHash
+                        })
 
                         Rectangle {
                             anchors.fill: parent
@@ -824,6 +1152,18 @@ Item {
                                     sources.selectImageByModelIndex(fileItem.index, false);
                                 }
                             }
+                            onDoubleClicked: {
+                                if (!sources.showingThisPc && !folderModel.isFolder(fileItem.index)) {
+                                    sources.selectImageByModelIndex(fileItem.index, false);
+                                    result.addPhoto(fileItem.fileURL, fileItem.fileName,
+                                                    fileItem.imageHash, undefined, true);
+                                }
+                            }
+                        }
+
+                        DragHandler {
+                            id: sourceDragHandler
+                            target: null
                         }
                     }
                 }
