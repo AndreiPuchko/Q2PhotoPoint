@@ -444,7 +444,7 @@ Item {
                 if (selectedPhotos.count === 0)
                     return -1;
 
-                var rowHeight = selectedList.width * 0.75;
+                var rowHeight = (selectedList.width - resultVbar.width) * 0.75;
                 var stride = rowHeight + selectedList.spacing;
                 var index = stride > 0 ? Math.floor((selectedList.contentY + y) / stride) : 0;
                 return Math.max(0, Math.min(selectedPhotos.count - 1, index));
@@ -455,7 +455,7 @@ Item {
                 if (rowIndex < 0)
                     return 0;
 
-                var rowHeight = selectedList.width * 0.75;
+                var rowHeight = (selectedList.width - resultVbar.width) * 0.75;
                 var stride = rowHeight + selectedList.spacing;
                 var rowOffset = selectedList.contentY + y - rowIndex * stride;
                 return rowIndex + (rowOffset > rowHeight / 2 ? 1 : 0);
@@ -575,6 +575,7 @@ Item {
                         }
 
                         ScrollBar.vertical: ScrollBar {
+                            id: resultVbar
                             policy: ScrollBar.AsNeeded
                         }
 
@@ -586,7 +587,7 @@ Item {
                             required property string fileName
                             required property string fileURL
 
-                            width: selectedList.width
+                            width: selectedList.width - resultVbar.width
                             height: width * 0.75
 
                             Item {
@@ -1087,6 +1088,7 @@ Item {
                     }
 
                     ScrollBar.vertical: ScrollBar {
+                        id: vbar
                         policy: ScrollBar.AsNeeded
                     }
 
@@ -1096,7 +1098,7 @@ Item {
                         required property string fileName
                         required property var fileURL
 
-                        width: folderList.width
+                        width: folderList.width - (vbar.visible ? vbar.width : 0)
                         readonly property string imagePath: fileItem.fileURL.toString()
                         readonly property string imageHash: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "" : fileSystemNavigator.imageStateHash(fileItem.fileURL)
                         readonly property bool isInResult: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) && result.photoIndex(fileItem.imagePath, fileItem.imageHash) >= 0
