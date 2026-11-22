@@ -421,24 +421,23 @@ Item {
                     return fromIndex;
                 }
 
-                var photo = selectedPhotos.get(fromIndex);
-                selectedPhotos.remove(fromIndex);
-                selectedPhotos.insert(targetIndex, photo);
+                selectedPhotos.move(fromIndex, targetIndex, 1);
                 selectPhotoAt(targetIndex, false);
                 return targetIndex;
             }
 
-            function insertionIndexAt(y) {
-                var rowHeight = selectedList.width * 0.75;
-                var stride = rowHeight + selectedList.spacing;
-                if (stride <= 0)
-                    return selectedPhotos.count;
-                var position = selectedList.contentY + y;
-                var index = Math.floor(position / stride);
-                var offset = position - index * stride;
-                if (index < selectedPhotos.count && offset > rowHeight / 2)
-                    ++index;
-                return Math.max(0, Math.min(selectedPhotos.count, index));
+            function movePhotoToIndex(fromIndex, targetIndex) {
+                if (fromIndex < 0 || fromIndex >= selectedPhotos.count)
+                    return;
+
+                targetIndex = Math.max(0, Math.min(selectedPhotos.count - 1, targetIndex));
+                if (targetIndex === fromIndex) {
+                    selectPhotoAt(fromIndex, false);
+                    return;
+                }
+
+                selectedPhotos.move(fromIndex, targetIndex, 1);
+                selectPhotoAt(targetIndex, false);
             }
 
             ListModel {
@@ -469,32 +468,27 @@ Item {
                     DropArea {
                         id: resultDragArea
                         anchors.fill: parent
-                        z: 1
-                        keys: ["application/x-q2photopoint-origin"]
+                        z: 2
+                        enabled: selectedPhotos.count === 0
+                        keys: ["application/x-q2photopoint-origin", "q2photopoint-photo"]
 
                         onEntered: function (drag) {
-                            var origin = drag.getDataAsString("application/x-q2photopoint-origin");
-                            if (origin === "result") {
-                                // Внутреннее перемещение: источник поддерживает MoveAction
-                                drag.accept(Qt.MoveAction);
-                            } else {
-                                // Из источника: поддерживает CopyAction
+                            if (drag.getDataAsString("application/x-q2photopoint-origin") === "source" &&
+                                drag.supportedActions & Qt.CopyAction)
                                 drag.accept(Qt.CopyAction);
-                            }
+                            else
+                                drag.accepted = false;
                         }
 
                         onDropped: function (drop) {
                             var origin = drop.getDataAsString("application/x-q2photopoint-origin");
-                            var path = drop.getDataAsString("application/x-q2photopoint-path");
-                            var fileName = drop.getDataAsString("application/x-q2photopoint-name");
-                            var hash = drop.getDataAsString("application/x-q2photopoint-hash");
-                            var insertionIndex = result.insertionIndexAt(drop.y);
-                            if (origin === "result") {
-                                result.navigationActive = true;
-                                const fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
-                                result.movePhoto(fromIndex, insertionIndex);
-                            } else {
-                                result.addPhoto(path, fileName, hash, insertionIndex, true);
+                            if (origin === "source") {
+                                result.addPhoto(
+                                    drop.getDataAsString("application/x-q2photopoint-path"),
+                                    drop.getDataAsString("application/x-q2photopoint-name"),
+                                    drop.getDataAsString("application/x-q2photopoint-hash"),
+                                    undefined,
+                                    true);
                             }
                             drop.acceptProposedAction();
                         }
@@ -503,7 +497,7 @@ Item {
                     ListView {
                         id: selectedList
                         anchors.fill: parent
-                        z: 0
+                        z: 1
                         clip: true
                         spacing: 8
                         model: selectedPhotos
@@ -563,8 +557,8 @@ Item {
                             policy: ScrollBar.AsNeeded
                         }
 
-                        delegate: Item {
-                            id: resultPhoto
+                        delegate: DropArea {
+                            id: resultDropTarget
                             required property int index
                             required property string path
                             required property string hash
@@ -573,52 +567,88 @@ Item {
 
                             width: selectedList.width
                             height: width * 0.75
+                            keys: ["application/x-q2photopoint-origin", "q2photopoint-photo"]
 
-                            Drag.active: resultMouseArea.drag.active
-                            Drag.dragType: Drag.Automatic
-                            Drag.keys: ["q2photopoint-photo"]
-                            Drag.supportedActions: Qt.MoveAction
-                            Drag.mimeData: ({
-                                    "application/x-q2photopoint-origin": "result",
-                                    "application/x-q2photopoint-path": resultPhoto.path,
-                                    "application/x-q2photopoint-name": resultPhoto.fileName,
-                                    "application/x-q2photopoint-hash": resultPhoto.hash,
-                                    "application/x-q2photopoint-index": String(resultPhoto.index)
-                                })
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: 4
-                                clip: true
-                                color: "#e2e8f0"
-                                border.width: selectedList.currentIndex === resultPhoto.index ? 2 : 0
-                                border.color: "#1976d2"
-
-                                Image {
-                                    id: resultThumbnail
-                                    property int cachedRotation: sources.rotationForImage(resultPhoto.path, resultPhoto.hash)
-                                    width: cachedRotation % 180 === 0 ? parent.width - 4 : parent.height - 4
-                                    height: cachedRotation % 180 === 0 ? parent.height - 4 : parent.width - 4
-                                    x: (parent.width - width) / 2
-                                    y: (parent.height - height) / 2
-                                    source: resultPhoto.fileURL
-                                    asynchronous: true
-                                    cache: true
-                                    sourceSize.width: width
-                                    fillMode: Image.PreserveAspectFit
-                                    rotation: cachedRotation
-                                    transformOrigin: Item.Center
-                                }
+                            onEntered: function (drag) {
+                                var origin = drag.getDataAsString("application/x-q2photopoint-origin");
+                                if (origin === "result" && drag.supportedActions & Qt.MoveAction)
+                                    drag.accept(Qt.MoveAction);
+                                else if (origin === "source" && drag.supportedActions & Qt.CopyAction)
+                                    drag.accept(Qt.CopyAction);
+                                else
+                                    drag.accepted = false;
                             }
 
-                            MouseArea {
-                                id: resultMouseArea          // ← новый id
+                            onDropped: function (drop) {
+                                var origin = drop.getDataAsString("application/x-q2photopoint-origin");
+                                if (origin === "result") {
+                                    result.navigationActive = true;
+                                    var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
+                                    result.movePhotoToIndex(fromIndex, resultDropTarget.index);
+                                } else if (origin === "source") {
+                                    var insertionIndex = resultDropTarget.index +
+                                        (drop.y > resultDropTarget.height / 2 ? 1 : 0);
+                                    result.addPhoto(
+                                        drop.getDataAsString("application/x-q2photopoint-path"),
+                                        drop.getDataAsString("application/x-q2photopoint-name"),
+                                        drop.getDataAsString("application/x-q2photopoint-hash"),
+                                        insertionIndex,
+                                        true);
+                                }
+                                drop.acceptProposedAction();
+                            }
+
+                            Item {
+                                id: resultPhoto
                                 anchors.fill: parent
-                                drag.target: resultPhoto
-                                drag.axis: Drag.YAxis
-                                onClicked: {
-                                    selectedList.currentIndex = resultPhoto.index;
-                                    result.selectPhotoAt(resultPhoto.index, true);
+
+                                Drag.active: resultMouseArea.drag.active
+                                Drag.dragType: Drag.Automatic
+                                Drag.keys: ["q2photopoint-photo"]
+                                Drag.supportedActions: Qt.MoveAction
+                                Drag.mimeData: ({
+                                        "application/x-q2photopoint-origin": "result",
+                                        "application/x-q2photopoint-path": resultDropTarget.path,
+                                        "application/x-q2photopoint-name": resultDropTarget.fileName,
+                                        "application/x-q2photopoint-hash": resultDropTarget.hash,
+                                        "application/x-q2photopoint-index": String(resultDropTarget.index)
+                                    })
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 4
+                                    clip: true
+                                    color: "#e2e8f0"
+                                    border.width: selectedList.currentIndex === resultDropTarget.index ? 2 : 0
+                                    border.color: "#1976d2"
+
+                                    Image {
+                                        id: resultThumbnail
+                                        property int cachedRotation: sources.rotationForImage(resultDropTarget.path, resultDropTarget.hash)
+                                        width: cachedRotation % 180 === 0 ? parent.width - 4 : parent.height - 4
+                                        height: cachedRotation % 180 === 0 ? parent.height - 4 : parent.width - 4
+                                        x: (parent.width - width) / 2
+                                        y: (parent.height - height) / 2
+                                        source: resultDropTarget.fileURL
+                                        asynchronous: true
+                                        cache: true
+                                        sourceSize.width: width
+                                        fillMode: Image.PreserveAspectFit
+                                        rotation: cachedRotation
+                                        transformOrigin: Item.Center
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: resultMouseArea
+                                    anchors.fill: parent
+                                    drag.target: resultPhoto
+                                    drag.axis: Drag.YAxis
+
+                                    onClicked: {
+                                        selectedList.currentIndex = resultDropTarget.index;
+                                        result.selectPhotoAt(resultDropTarget.index, true);
+                                    }
                                 }
                             }
                         }
@@ -1142,7 +1172,6 @@ Item {
                             onPositionChanged: function (mouse) {
                                 if (!pressed)
                                     return;
-                                // Порог, чтобы не стартовать drag на клике
                                 if (Math.abs(mouse.x - pressPos.x) > 8) {
                                     fileItem.Drag.active = true;
                                 }
