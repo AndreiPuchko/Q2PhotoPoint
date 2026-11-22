@@ -440,6 +440,29 @@ Item {
                 selectPhotoAt(targetIndex, false);
             }
 
+            function rowIndexAt(y) {
+                if (selectedPhotos.count === 0)
+                    return -1;
+
+                var rowHeight = selectedList.width * 0.75;
+                var stride = rowHeight + selectedList.spacing;
+                var index = stride > 0
+                    ? Math.floor((selectedList.contentY + y) / stride)
+                    : 0;
+                return Math.max(0, Math.min(selectedPhotos.count - 1, index));
+            }
+
+            function insertionIndexAt(y) {
+                var rowIndex = rowIndexAt(y);
+                if (rowIndex < 0)
+                    return 0;
+
+                var rowHeight = selectedList.width * 0.75;
+                var stride = rowHeight + selectedList.spacing;
+                var rowOffset = selectedList.contentY + y - rowIndex * stride;
+                return rowIndex + (rowOffset > rowHeight / 2 ? 1 : 0);
+            }
+
             ListModel {
                 id: selectedPhotos
             }
@@ -469,12 +492,13 @@ Item {
                         id: resultDragArea
                         anchors.fill: parent
                         z: 2
-                        enabled: selectedPhotos.count === 0
                         keys: ["application/x-q2photopoint-origin", "q2photopoint-photo"]
 
                         onEntered: function (drag) {
-                            if (drag.getDataAsString("application/x-q2photopoint-origin") === "source" &&
-                                drag.supportedActions & Qt.CopyAction)
+                            var origin = drag.getDataAsString("application/x-q2photopoint-origin");
+                            if (origin === "result" && drag.supportedActions & Qt.MoveAction)
+                                drag.accept(Qt.MoveAction);
+                            else if (origin === "source" && drag.supportedActions & Qt.CopyAction)
                                 drag.accept(Qt.CopyAction);
                             else
                                 drag.accepted = false;
@@ -482,12 +506,16 @@ Item {
 
                         onDropped: function (drop) {
                             var origin = drop.getDataAsString("application/x-q2photopoint-origin");
-                            if (origin === "source") {
+                            if (origin === "result") {
+                                result.navigationActive = true;
+                                var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
+                                result.movePhotoToIndex(fromIndex, result.rowIndexAt(drop.y));
+                            } else if (origin === "source") {
                                 result.addPhoto(
                                     drop.getDataAsString("application/x-q2photopoint-path"),
                                     drop.getDataAsString("application/x-q2photopoint-name"),
                                     drop.getDataAsString("application/x-q2photopoint-hash"),
-                                    undefined,
+                                    result.insertionIndexAt(drop.y),
                                     true);
                             }
                             drop.acceptProposedAction();
@@ -557,7 +585,7 @@ Item {
                             policy: ScrollBar.AsNeeded
                         }
 
-                        delegate: DropArea {
+                        delegate: Item {
                             id: resultDropTarget
                             required property int index
                             required property string path
@@ -567,40 +595,13 @@ Item {
 
                             width: selectedList.width
                             height: width * 0.75
-                            keys: ["application/x-q2photopoint-origin", "q2photopoint-photo"]
-
-                            onEntered: function (drag) {
-                                var origin = drag.getDataAsString("application/x-q2photopoint-origin");
-                                if (origin === "result" && drag.supportedActions & Qt.MoveAction)
-                                    drag.accept(Qt.MoveAction);
-                                else if (origin === "source" && drag.supportedActions & Qt.CopyAction)
-                                    drag.accept(Qt.CopyAction);
-                                else
-                                    drag.accepted = false;
-                            }
-
-                            onDropped: function (drop) {
-                                var origin = drop.getDataAsString("application/x-q2photopoint-origin");
-                                if (origin === "result") {
-                                    result.navigationActive = true;
-                                    var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
-                                    result.movePhotoToIndex(fromIndex, resultDropTarget.index);
-                                } else if (origin === "source") {
-                                    var insertionIndex = resultDropTarget.index +
-                                        (drop.y > resultDropTarget.height / 2 ? 1 : 0);
-                                    result.addPhoto(
-                                        drop.getDataAsString("application/x-q2photopoint-path"),
-                                        drop.getDataAsString("application/x-q2photopoint-name"),
-                                        drop.getDataAsString("application/x-q2photopoint-hash"),
-                                        insertionIndex,
-                                        true);
-                                }
-                                drop.acceptProposedAction();
-                            }
 
                             Item {
                                 id: resultPhoto
-                                anchors.fill: parent
+                                x: 0
+                                y: 0
+                                width: parent.width
+                                height: parent.height
 
                                 Drag.active: resultMouseArea.drag.active
                                 Drag.dragType: Drag.Automatic
@@ -648,6 +649,14 @@ Item {
                                     onClicked: {
                                         selectedList.currentIndex = resultDropTarget.index;
                                         result.selectPhotoAt(resultDropTarget.index, true);
+                                    }
+                                    onReleased: {
+                                        resultPhoto.x = 0;
+                                        resultPhoto.y = 0;
+                                    }
+                                    onCanceled: {
+                                        resultPhoto.x = 0;
+                                        resultPhoto.y = 0;
                                     }
                                 }
                             }
