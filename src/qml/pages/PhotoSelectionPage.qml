@@ -1,4 +1,3 @@
-
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -15,7 +14,6 @@ Item {
             implicitWidth: 30
             implicitHeight: 20
 
-            // Тонкая фоновая линия на всю высоту (опционально)
             Rectangle {
                 width: 14
                 height: parent.height
@@ -23,7 +21,6 @@ Item {
                 color: "#e0e0e0"
             }
 
-            // Центральная пилюля для захвата пальцем
             Rectangle {
                 width: 4
                 height: 36
@@ -31,9 +28,59 @@ Item {
                 anchors.centerIn: parent
                 color: SplitHandle.pressed ? "#1976d2" : (SplitHandle.hovered ? "#64b5f6" : "#9e9e9e")
 
-                // Плавное увеличение при нажатии пальцем
                 scale: SplitHandle.pressed ? 1.2 : 1.0
-                Behavior on scale { NumberAnimation { duration: 100 } }
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 100
+                    }
+                }
+            }
+        }
+        // Full preview
+        Rectangle {
+            SplitView.fillWidth: true
+            SplitView.minimumWidth: 300
+
+            color: "white"
+            radius: 8
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 12
+
+                Label {
+                    text: "Preview"
+                    font.bold: true
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: "#f1f5f9"
+                    radius: 6
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Select a photo to preview"
+                        color: "#94a3b8"
+                    }
+                }
+
+                RowLayout {
+                    Button {
+                        text: "Rotate"
+                    }
+                    Button {
+                        text: "Crop"
+                    }
+                    Button {
+                        text: "Adjust"
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
             }
         }
         // Selected photos
@@ -118,46 +165,6 @@ Item {
                         color: "#e2e8f0"
                         radius: 4
                     }
-                }
-            }
-        }
-
-        // Full preview
-        Rectangle {
-            SplitView.fillWidth: true
-            SplitView.minimumWidth: 300
-
-            color: "white"
-            radius: 8
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 12
-
-                Label {
-                    text: "Preview"
-                    font.bold: true
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    color: "#f1f5f9"
-                    radius: 6
-
-                    Label {
-                        anchors.centerIn: parent
-                        text: "Select a photo to preview"
-                        color: "#94a3b8"
-                    }
-                }
-
-                RowLayout {
-                    Button { text: "Rotate" }
-                    Button { text: "Crop" }
-                    Button { text: "Adjust" }
-                    Item { Layout.fillWidth: true }
                 }
             }
         }
