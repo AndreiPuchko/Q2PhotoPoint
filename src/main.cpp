@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
 
-    QGuiApplication::setApplicationName("PhotoPoint");
-    QGuiApplication::setOrganizationName("PhotoPoint");
+    QGuiApplication::setApplicationName("Q2PhotoPoint");
+    QGuiApplication::setOrganizationName("Q2PhotoPoint");
 
     QQmlApplicationEngine engine;
     QObject::connect(
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
 
-    engine.loadFromModule("PhotoPoint", "Main");
+    engine.loadFromModule("Q2PhotoPoint", "Main");
 
     return app.exec();
 }

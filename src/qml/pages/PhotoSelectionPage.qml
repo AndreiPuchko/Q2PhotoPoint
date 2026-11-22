@@ -62,7 +62,7 @@ Item {
 
                     Label {
                         anchors.centerIn: parent
-                        text: "Select a photo to preview"
+                        text: "Select a photo to preview!"
                         color: "#94a3b8"
                     }
                 }

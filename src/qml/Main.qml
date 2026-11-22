@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import PhotoPoint
+import Q2PhotoPoint
 
 ApplicationWindow {
     id: window
@@ -13,7 +13,7 @@ ApplicationWindow {
     height: 800
     visible: true
 
-    title: "PhotoPoint"
+    title: "Q2PhotoPoint"
     color: "#f4f6f9"
 
     // visibility: Window.Maximized
