@@ -8,7 +8,7 @@ Qt application for desktop platforms and Android for browsing photos and buildin
 - Preview images with asynchronous loading and caching.
 - Zoom and rotate images; viewing state is kept in memory when switching between files.
 - Add and remove photos from the result, and reorder entries by dragging them between rows.
-- Save the ordered selection and image viewing state as a `.q2c` JSON file.
+- Save and open ordered selections and image viewing state as `.q2c` JSON files.
 - Source images already in the result are marked with a green border.
 - Navigate lists with the keyboard and scroll through long lists.
 - On Windows, the file browser also shows available drives and network locations.
@@ -40,6 +40,7 @@ The Add button in the preview toolbar also adds the selected source image.
 | `↑` / `↓`, `Page Up` / `Page Down`, `Home` / `End` | Navigate the list |
 | `→` | Rotate the selected image |
 | `Delete` or `-` | Remove the selected image from the result |
+| Open collection button | Replace the result with a saved `.q2c` collection |
 | Save collection button | Save the selection as a `.q2c` JSON file |
 
 ### Preview

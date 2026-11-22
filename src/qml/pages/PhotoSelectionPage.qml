@@ -521,6 +521,51 @@ Item {
                 };
             }
 
+            function applyCollection(collection) {
+                sources.saveCurrentImageState();
+                selectedPhotos.clear();
+                sources.navigationActive = false;
+                navigationActive = true;
+
+                var photos = collection.photos;
+                for (var i = 0; i < photos.length; ++i) {
+                    var photo = photos[i];
+                    var path = String(photo.path);
+                    var hash = String(photo.hash);
+                    selectedPhotos.append({
+                        path: path,
+                        fileURL: path,
+                        fileName: String(photo.fileName),
+                        hash: hash
+                    });
+
+                    var stateIndex = sources.imageStateIndexFor(path, hash);
+                    imageStateCache.setProperty(stateIndex, "rotation", Number(photo.rotation));
+                    imageStateCache.setProperty(stateIndex, "zoomFactor", Number(photo.zoomFactor));
+                    imageStateCache.setProperty(stateIndex, "scrollX", Math.max(0, Number(photo.scrollX)));
+                    imageStateCache.setProperty(stateIndex, "scrollY", Math.max(0, Number(photo.scrollY)));
+                }
+
+                if (selectedPhotos.count === 0) {
+                    selectedPhotoIndex = -1;
+                    selectedList.currentIndex = -1;
+                    sources.syncSourceSelection("");
+                    fullview.currentImageUrl = "";
+                    fullview.currentImageHash = "";
+                    fullview.currentImageStateIndex = -1;
+                    fullview.rotationAngle = 0;
+                    fullview.zoomFactor = 1;
+                    previewFlickable.contentX = 0;
+                    previewFlickable.contentY = 0;
+                    pageNumberInput.text = "0";
+                    selectedList.forceActiveFocus();
+                    return;
+                }
+
+                var index = Math.max(0, Math.min(selectedPhotos.count - 1, Number(collection.selectedIndex)));
+                selectPhotoAt(index, true);
+            }
+
             function rowIndexAt(y) {
                 if (selectedPhotos.count === 0)
                     return -1;
@@ -747,15 +792,16 @@ Item {
                     Button {
                         text: "Open collection"
                         Layout.fillWidth: true
-                        enabled: selectedPhotos.count > 0
+                        // enabled: selectedPhotos.count > 0
                         icon.width: 18
                         icon.height: 18
                         icon.color: "#2E39B3"
                         Layout.preferredHeight: 32
                         padding: 4
-                        Accessible.name: "Save link collection"
+                        Accessible.name: "Open collection"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
+                        onClicked: collectionOpenDialog.open()
                     }
                     Button {
                         text: "Save collection"
@@ -797,8 +843,27 @@ Item {
                 onAccepted: {
                     var saveResult = fileSystemNavigator.saveCollection(file, result.collectionData());
                     if (!saveResult.success) {
+                        collectionSaveErrorDialog.title = "Could not save collection";
                         collectionSaveErrorDialog.errorMessage = saveResult.error;
                         collectionSaveErrorDialog.open();
+                    }
+                }
+            }
+
+            FileDialog {
+                id: collectionOpenDialog
+                title: "Open photo collection"
+                fileMode: FileDialog.OpenFile
+                nameFilters: ["Q2PhotoPoint Collection (*.q2c)"]
+
+                onAccepted: {
+                    var loadResult = fileSystemNavigator.loadCollection(file);
+                    if (!loadResult.success) {
+                        collectionSaveErrorDialog.title = "Could not open collection";
+                        collectionSaveErrorDialog.errorMessage = loadResult.error;
+                        collectionSaveErrorDialog.open();
+                    } else {
+                        result.applyCollection(loadResult.collection);
                     }
                 }
             }
@@ -1329,7 +1394,7 @@ Item {
                                         radius: 4
                                         color: "transparent"
                                         border.width: fileItem.isInResult ? 3 : 0
-                                        border.color: '#5aec90'
+                                        border.color: fileItem.isSelectedImage ? "#1976d2" : "#5aec90"
                                     }
                                 }
 
