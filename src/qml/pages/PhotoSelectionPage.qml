@@ -446,9 +446,7 @@ Item {
 
                 var rowHeight = selectedList.width * 0.75;
                 var stride = rowHeight + selectedList.spacing;
-                var index = stride > 0
-                    ? Math.floor((selectedList.contentY + y) / stride)
-                    : 0;
+                var index = stride > 0 ? Math.floor((selectedList.contentY + y) / stride) : 0;
                 return Math.max(0, Math.min(selectedPhotos.count - 1, index));
             }
 
@@ -511,12 +509,7 @@ Item {
                                 var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
                                 result.movePhotoToIndex(fromIndex, result.rowIndexAt(drop.y));
                             } else if (origin === "source") {
-                                result.addPhoto(
-                                    drop.getDataAsString("application/x-q2photopoint-path"),
-                                    drop.getDataAsString("application/x-q2photopoint-name"),
-                                    drop.getDataAsString("application/x-q2photopoint-hash"),
-                                    result.insertionIndexAt(drop.y),
-                                    true);
+                                result.addPhoto(drop.getDataAsString("application/x-q2photopoint-path"), drop.getDataAsString("application/x-q2photopoint-name"), drop.getDataAsString("application/x-q2photopoint-hash"), result.insertionIndexAt(drop.y), true);
                             }
                             drop.acceptProposedAction();
                         }
@@ -1106,19 +1099,13 @@ Item {
                         width: folderList.width
                         readonly property string imagePath: fileItem.fileURL.toString()
                         readonly property string imageHash: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "" : fileSystemNavigator.imageStateHash(fileItem.fileURL)
+                        readonly property bool isInResult: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) && result.photoIndex(fileItem.imagePath, fileItem.imageHash) >= 0
                         readonly property bool isSelectedImage: !sources.showingThisPc && !folderModel.isFolder(index) && fileItem.imagePath === sources.selectedImageUrl.toString()
                         readonly property int cachedRotation: isSelectedImage ? fullview.rotationAngle : sources.rotationForImage(fileItem.imagePath, fileItem.imageHash)
                         readonly property bool isRotated: cachedRotation % 180 !== 0
-                        readonly property real unrotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0
-                            ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth
-                            : sources.minimumPreviewHeight
-                        readonly property real rotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0
-                            ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight
-                                                        : thumbnail.implicitHeight / thumbnail.implicitWidth)
-                            : sources.minimumPreviewHeight
-                        readonly property real previewHeight: Math.max(sources.minimumPreviewHeight,
-                            isRotated && unrotatedPreviewHeight < sources.minimumPreviewHeight
-                                ? sources.minimumPreviewHeight : rotatedPreviewHeight)
+                        readonly property real unrotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0 ? (width - 4) * thumbnail.implicitHeight / thumbnail.implicitWidth : sources.minimumPreviewHeight
+                        readonly property real rotatedPreviewHeight: thumbnail.implicitWidth > 0 && thumbnail.implicitHeight > 0 ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight : thumbnail.implicitHeight / thumbnail.implicitWidth) : sources.minimumPreviewHeight
+                        readonly property real previewHeight: Math.max(sources.minimumPreviewHeight, isRotated && unrotatedPreviewHeight < sources.minimumPreviewHeight ? sources.minimumPreviewHeight : rotatedPreviewHeight)
                         height: sources.showingThisPc ? 48 : folderModel.isFolder(index) ? 48 : previewHeight + 34
 
                         // Drag.active: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) && sourceDragArea.drag.active
@@ -1161,6 +1148,15 @@ Item {
                                         fillMode: Image.PreserveAspectFit
                                         rotation: fileItem.cachedRotation
                                         transformOrigin: Item.Center
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        anchors.margins: 2
+                                        radius: 4
+                                        color: "transparent"
+                                        border.width: fileItem.isInResult ? 3 : 0
+                                        border.color: '#5aec90'
                                     }
                                 }
 
