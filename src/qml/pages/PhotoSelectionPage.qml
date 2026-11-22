@@ -87,7 +87,7 @@ Item {
                     else
                         folderList.forceActiveFocus();
                 } else {
-                    previewFlickable.forceActiveFocus()
+                    previewFlickable.forceActiveFocus();
                 }
             }
 
@@ -215,8 +215,7 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: fullview.currentImageStateIndex >= 0 &&
-                                fullview.zoomFactor > fullview.minimumZoomFactor
+                            enabled: fullview.currentImageStateIndex >= 0 && fullview.zoomFactor > fullview.minimumZoomFactor
                             Accessible.name: "Zoom out"
                             onClicked: fullview.zoomOut()
                         }
@@ -232,8 +231,7 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: fullview.currentImageStateIndex >= 0 &&
-                                fullview.zoomFactor < fullview.maximumZoomFactor
+                            enabled: fullview.currentImageStateIndex >= 0 && fullview.zoomFactor < fullview.maximumZoomFactor
                             Accessible.name: "Zoom in"
                             onClicked: fullview.zoomIn()
                         }
@@ -312,11 +310,9 @@ Item {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             padding: 4
-                            enabled: sources.navigationCount > 0 &&
-                                sources.navigationIndex < sources.navigationCount - 1
+                            enabled: sources.navigationCount > 0 && sources.navigationIndex < sources.navigationCount - 1
                             Accessible.name: "Next image"
-                            onClicked: sources.navigateCurrentTo(
-                                sources.navigationIndex < 0 ? 0 : sources.navigationIndex + 1)
+                            onClicked: sources.navigateCurrentTo(sources.navigationIndex < 0 ? 0 : sources.navigationIndex + 1)
                         }
                         Button {
                             id: lastPageButton
@@ -398,15 +394,12 @@ Item {
 
                 var existingIndex = photoIndex(path, hash);
                 if (existingIndex >= 0) {
-                    var targetIndex = insertionIndex === undefined
-                        ? existingIndex : movePhoto(existingIndex, insertionIndex);
+                    var targetIndex = insertionIndex === undefined ? existingIndex : movePhoto(existingIndex, insertionIndex);
                     selectPhotoAt(targetIndex, focusResult);
                     return;
                 }
 
-                var targetIndex = insertionIndex === undefined
-                    ? selectedPhotos.count
-                    : Math.max(0, Math.min(selectedPhotos.count, insertionIndex));
+                var targetIndex = insertionIndex === undefined ? selectedPhotos.count : Math.max(0, Math.min(selectedPhotos.count, insertionIndex));
                 selectedPhotos.insert(targetIndex, {
                     path: path,
                     hash: hash,
@@ -473,9 +466,44 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    DropArea {
+                        id: resultDragArea
+                        anchors.fill: parent
+                        z: 1
+                        keys: ["application/x-q2photopoint-origin"]
+
+                        onEntered: function (drag) {
+                            var origin = drag.getDataAsString("application/x-q2photopoint-origin");
+                            if (origin === "result") {
+                                // Внутреннее перемещение: источник поддерживает MoveAction
+                                drag.accept(Qt.MoveAction);
+                            } else {
+                                // Из источника: поддерживает CopyAction
+                                drag.accept(Qt.CopyAction);
+                            }
+                        }
+
+                        onDropped: function (drop) {
+                            var origin = drop.getDataAsString("application/x-q2photopoint-origin");
+                            var path = drop.getDataAsString("application/x-q2photopoint-path");
+                            var fileName = drop.getDataAsString("application/x-q2photopoint-name");
+                            var hash = drop.getDataAsString("application/x-q2photopoint-hash");
+                            var insertionIndex = result.insertionIndexAt(drop.y);
+                            if (origin === "result") {
+                                result.navigationActive = true;
+                                const fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
+                                result.movePhoto(fromIndex, insertionIndex);
+                            } else {
+                                result.addPhoto(path, fileName, hash, insertionIndex, true);
+                            }
+                            drop.acceptProposedAction();
+                        }
+                    }
+
                     ListView {
                         id: selectedList
                         anchors.fill: parent
+                        z: 0
                         clip: true
                         spacing: 8
                         model: selectedPhotos
@@ -485,13 +513,12 @@ Item {
                         function moveCurrentIndexBy(delta) {
                             if (count === 0)
                                 return;
-                            currentIndex = Math.max(0, Math.min(count - 1,
-                                                              currentIndex < 0 ? 0 : currentIndex + delta));
+                            currentIndex = Math.max(0, Math.min(count - 1, currentIndex < 0 ? 0 : currentIndex + delta));
                             positionViewAtIndex(currentIndex, ListView.Contain);
                             result.selectPhotoAt(currentIndex, false);
                         }
 
-                        Keys.onPressed: function(event) {
+                        Keys.onPressed: function (event) {
                             var handled = true;
                             switch (event.key) {
                             case Qt.Key_Up:
@@ -547,17 +574,17 @@ Item {
                             width: selectedList.width
                             height: width * 0.75
 
-                            Drag.active: resultDragHandler.active
+                            Drag.active: resultMouseArea.drag.active
                             Drag.dragType: Drag.Automatic
                             Drag.keys: ["q2photopoint-photo"]
                             Drag.supportedActions: Qt.MoveAction
                             Drag.mimeData: ({
-                                "application/x-q2photopoint-origin": "result",
-                                "application/x-q2photopoint-path": resultPhoto.path,
-                                "application/x-q2photopoint-name": resultPhoto.fileName,
-                                "application/x-q2photopoint-hash": resultPhoto.hash,
-                                "application/x-q2photopoint-index": String(resultPhoto.index)
-                            })
+                                    "application/x-q2photopoint-origin": "result",
+                                    "application/x-q2photopoint-path": resultPhoto.path,
+                                    "application/x-q2photopoint-name": resultPhoto.fileName,
+                                    "application/x-q2photopoint-hash": resultPhoto.hash,
+                                    "application/x-q2photopoint-index": String(resultPhoto.index)
+                                })
 
                             Rectangle {
                                 anchors.fill: parent
@@ -585,39 +612,15 @@ Item {
                             }
 
                             MouseArea {
+                                id: resultMouseArea          // ← новый id
                                 anchors.fill: parent
+                                drag.target: resultPhoto
+                                drag.axis: Drag.YAxis
                                 onClicked: {
                                     selectedList.currentIndex = resultPhoto.index;
                                     result.selectPhotoAt(resultPhoto.index, true);
                                 }
                             }
-
-                            DragHandler {
-                                id: resultDragHandler
-                                target: null
-                            }
-                        }
-                    }
-
-                    DropArea {
-                        anchors.fill: parent
-                        z: 1
-                        keys: ["q2photopoint-photo"]
-
-                        onDropped: function(drop) {
-                            var origin = drop.getDataAsString("application/x-q2photopoint-origin");
-                            var path = drop.getDataAsString("application/x-q2photopoint-path");
-                            var fileName = drop.getDataAsString("application/x-q2photopoint-name");
-                            var hash = drop.getDataAsString("application/x-q2photopoint-hash");
-                            var insertionIndex = result.insertionIndexAt(drop.y);
-                            if (origin === "result") {
-                                result.navigationActive = true;
-                                var fromIndex = Number(drop.getDataAsString("application/x-q2photopoint-index"));
-                                result.movePhoto(fromIndex, insertionIndex);
-                            } else {
-                                result.addPhoto(path, fileName, hash, insertionIndex, true);
-                            }
-                            drop.acceptProposedAction();
                         }
                     }
                 }
@@ -639,10 +642,8 @@ Item {
             property url selectedImageUrl: ""
             property int selectedImageIndex: -1
             property int selectedModelIndex: -1
-            readonly property int navigationCount: result.navigationActive
-                ? selectedPhotos.count : foundImageCount
-            readonly property int navigationIndex: result.navigationActive
-                ? result.selectedPhotoIndex : selectedImageIndex
+            readonly property int navigationCount: result.navigationActive ? selectedPhotos.count : foundImageCount
+            readonly property int navigationIndex: result.navigationActive ? result.selectedPhotoIndex : selectedImageIndex
 
             function updateFoundImageCount() {
                 var count = 0;
@@ -708,8 +709,7 @@ Item {
                 if (fullview.currentImageStateIndex < 0)
                     return;
                 var state = imageStateCache.get(fullview.currentImageStateIndex);
-                if (state.path !== fullview.currentImageUrl.toString() ||
-                    state.hash !== fullview.currentImageHash)
+                if (state.path !== fullview.currentImageUrl.toString() || state.hash !== fullview.currentImageHash)
                     return;
                 imageStateCache.setProperty(fullview.currentImageStateIndex, "rotation", fullview.rotationAngle);
                 imageStateCache.setProperty(fullview.currentImageStateIndex, "zoomFactor", fullview.zoomFactor);
@@ -865,8 +865,7 @@ Item {
                         sources.updateFoundImageCount();
                         if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
                             folderList.currentIndex = 0;
-                        if (!sources.showingThisPc && sources.selectedImageIndex < 0 &&
-                            sources.foundImageCount > 0)
+                        if (!sources.showingThisPc && sources.selectedImageIndex < 0 && sources.foundImageCount > 0)
                             sources.selectImageAt(0, false);
                     }
                 }
@@ -976,21 +975,18 @@ Item {
                     function visiblePageStep() {
                         var firstVisible = indexAt(1, 1);
                         var lastVisible = indexAt(1, Math.max(1, height - 1));
-                        return firstVisible >= 0 && lastVisible > firstVisible
-                            ? lastVisible - firstVisible
-                            : Math.max(1, Math.floor(height / 96));
+                        return firstVisible >= 0 && lastVisible > firstVisible ? lastVisible - firstVisible : Math.max(1, Math.floor(height / 96));
                     }
 
                     onActiveFocusChanged: {
                         if (activeFocus) {
                             result.navigationActive = false;
-                            if (!sources.showingThisPc && currentIndex >= 0 &&
-                                !folderModel.isFolder(currentIndex))
+                            if (!sources.showingThisPc && currentIndex >= 0 && !folderModel.isFolder(currentIndex))
                                 sources.selectImageByModelIndex(currentIndex, false);
                         }
                     }
 
-                    Keys.onPressed: function(event) {
+                    Keys.onPressed: function (event) {
                         var handled = true;
                         switch (event.key) {
                         case Qt.Key_Up:
@@ -1012,8 +1008,7 @@ Item {
                             folderList.moveCurrentIndexTo(folderList.count - 1);
                             break;
                         case Qt.Key_Right:
-                            if (!sources.showingThisPc && folderList.currentIndex >= 0 &&
-                                !folderModel.isFolder(folderList.currentIndex)) {
+                            if (!sources.showingThisPc && folderList.currentIndex >= 0 && !folderModel.isFolder(folderList.currentIndex)) {
                                 sources.selectImageByModelIndex(folderList.currentIndex, false);
                                 fullview.rotateSelectedImage(true);
                             }
@@ -1042,8 +1037,7 @@ Item {
                         case Qt.Key_Plus:
                         case Qt.Key_Equal:
                             if (event.key === Qt.Key_Plus || event.text === "+") {
-                                if (sources.showingThisPc || folderList.currentIndex < 0 ||
-                                    folderModel.isFolder(folderList.currentIndex))
+                                if (sources.showingThisPc || folderList.currentIndex < 0 || folderModel.isFolder(folderList.currentIndex))
                                     break;
                                 var imageURL = folderModel.get(folderList.currentIndex, "fileURL");
                                 var imageName = folderModel.get(folderList.currentIndex, "fileName");
@@ -1079,23 +1073,21 @@ Item {
                         readonly property real previewHeight: Math.max(sources.minimumPreviewHeight, thumbnail.implicitWidth > 0 ? (width - 4) * (isRotated ? thumbnail.implicitWidth / thumbnail.implicitHeight : thumbnail.implicitHeight / thumbnail.implicitWidth) : sources.minimumPreviewHeight)
                         height: sources.showingThisPc ? 48 : folderModel.isFolder(index) ? 48 : previewHeight + 34
 
-                        Drag.active: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) &&
-                            sourceDragHandler.active
+                        // Drag.active: !sources.showingThisPc && !folderModel.isFolder(fileItem.index) && sourceDragArea.drag.active
                         Drag.dragType: Drag.Automatic
                         Drag.keys: ["q2photopoint-photo"]
                         Drag.supportedActions: Qt.CopyAction
                         Drag.mimeData: ({
-                            "application/x-q2photopoint-origin": "source",
-                            "application/x-q2photopoint-path": fileItem.imagePath,
-                            "application/x-q2photopoint-name": fileItem.fileName,
-                            "application/x-q2photopoint-hash": fileItem.imageHash
-                        })
+                                "application/x-q2photopoint-origin": "source",
+                                "application/x-q2photopoint-path": fileItem.imagePath,
+                                "application/x-q2photopoint-name": fileItem.fileName,
+                                "application/x-q2photopoint-hash": fileItem.imageHash
+                            })
 
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
-                            border.width: fileItem.isSelectedImage ? 2
-                                : folderList.activeFocus && folderList.currentIndex === fileItem.index ? 1 : 0
+                            border.width: fileItem.isSelectedImage ? 2 : folderList.activeFocus && folderList.currentIndex === fileItem.index ? 1 : 0
                             border.color: fileItem.isSelectedImage ? "#1976d2" : "#64748b"
                             color: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
 
@@ -1139,7 +1131,26 @@ Item {
                         }
 
                         MouseArea {
+                            id: sourceDragArea
                             anchors.fill: parent
+                            property point pressPos
+
+                            onPressed: function (mouse) {
+                                pressPos = Qt.point(mouse.x, mouse.y);
+                            }
+
+                            onPositionChanged: function (mouse) {
+                                if (!pressed)
+                                    return;
+                                // Порог, чтобы не стартовать drag на клике
+                                if (Math.abs(mouse.x - pressPos.x) > 8) {
+                                    fileItem.Drag.active = true;
+                                }
+                            }
+
+                            onReleased: {
+                                fileItem.Drag.active = false;
+                            }
                             onClicked: {
                                 folderList.currentIndex = fileItem.index;
                                 folderList.forceActiveFocus();
@@ -1155,15 +1166,9 @@ Item {
                             onDoubleClicked: {
                                 if (!sources.showingThisPc && !folderModel.isFolder(fileItem.index)) {
                                     sources.selectImageByModelIndex(fileItem.index, false);
-                                    result.addPhoto(fileItem.fileURL, fileItem.fileName,
-                                                    fileItem.imageHash, undefined, true);
+                                    result.addPhoto(fileItem.fileURL, fileItem.fileName, fileItem.imageHash, undefined, true);
                                 }
                             }
-                        }
-
-                        DragHandler {
-                            id: sourceDragHandler
-                            target: null
                         }
                     }
                 }
