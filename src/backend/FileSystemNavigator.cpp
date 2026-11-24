@@ -3,6 +3,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
@@ -15,6 +16,7 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QSaveFile>
+#include <QSet>
 #include <QStorageInfo>
 #include <QTransform>
 #include <QUrl>
@@ -312,5 +314,88 @@ QVariantMap FileSystemNavigator::exportCollectionPdf(const QUrl &url, const QVar
 
     result.insert(QStringLiteral("success"), true);
     result.insert(QStringLiteral("path"), path);
+    return result;
+}
+
+QVariantMap FileSystemNavigator::copyCollectionFiles(const QUrl &destination, const QVariantList &photos) const
+{
+    QVariantMap result;
+    const auto setError = [&result](const QString &message) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), message);
+    };
+
+    if (!destination.isLocalFile()) {
+        setError(tr("The destination must be a local folder."));
+        return result;
+    }
+
+    const QString destinationPath = destination.toLocalFile();
+    const QDir destinationDir(destinationPath);
+    if (!destinationDir.exists()) {
+        setError(tr("The selected destination folder does not exist."));
+        return result;
+    }
+    if (photos.isEmpty()) {
+        setError(tr("The collection is empty."));
+        return result;
+    }
+
+    int copiedCount = 0;
+    QStringList copiedFiles;
+    QSet<QString> reservedNames;
+
+    for (const QVariant &photoValue : photos) {
+        const QVariantMap photo = photoValue.toMap();
+        const QUrl sourceUrl(photo.value(QStringLiteral("path")).toString());
+        const QFileInfo sourceInfo(sourceUrl.toLocalFile());
+        if (!sourceUrl.isLocalFile() || !sourceInfo.exists() || !sourceInfo.isFile()) {
+            setError(tr("Could not find source photo: %1").arg(photo.value(QStringLiteral("fileName")).toString()));
+            result.insert(QStringLiteral("copiedCount"), copiedCount);
+            result.insert(QStringLiteral("copiedFiles"), copiedFiles);
+            return result;
+        }
+
+        const QString fileName = sourceInfo.fileName();
+        const QFileInfo nameInfo(fileName);
+        const QString baseName = nameInfo.completeBaseName();
+        const QString suffix = nameInfo.completeSuffix();
+        QString targetName = fileName;
+        int duplicateIndex = 1;
+        while (true) {
+            if (duplicateIndex > 1) {
+                targetName = suffix.isEmpty()
+                    ? QStringLiteral("%1 (%2)").arg(baseName).arg(duplicateIndex)
+                    : QStringLiteral("%1 (%2).%3").arg(baseName).arg(duplicateIndex).arg(suffix);
+            }
+
+            const QString targetPath = destinationDir.filePath(targetName);
+            if (reservedNames.contains(targetName.toCaseFolded()) || QFileInfo::exists(targetPath)) {
+                ++duplicateIndex;
+                continue;
+            }
+
+            if (QFile::copy(sourceInfo.absoluteFilePath(), targetPath))
+                break;
+            if (QFileInfo::exists(targetPath)) {
+                ++duplicateIndex;
+                continue;
+            }
+
+            setError(tr("Could not copy '%1' to the selected folder.").arg(fileName));
+            result.insert(QStringLiteral("copiedCount"), copiedCount);
+            result.insert(QStringLiteral("copiedFiles"), copiedFiles);
+            return result;
+        }
+
+        reservedNames.insert(targetName.toCaseFolded());
+        copiedFiles.append(targetName);
+        ++copiedCount;
+    }
+
+    result.insert(QStringLiteral("success"), true);
+    result.insert(QStringLiteral("destination"), destinationPath);
+    result.insert(QStringLiteral("copiedCount"), copiedCount);
+    result.insert(QStringLiteral("copiedFiles"), copiedFiles);
     return result;
 }

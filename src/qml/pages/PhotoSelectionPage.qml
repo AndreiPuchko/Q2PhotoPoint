@@ -831,6 +831,20 @@ Item {
                         ToolTip.visible: hovered
                         onClicked: pdfSaveDialog.open()
                     }
+                    Controls.Button {
+                        text: "Save files to folder"
+                        enabled: selectedPhotos.count > 0
+                        Layout.fillWidth: true
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        Accessible.name: "Copy collection files to folder"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: collectionFolderDialog.open()
+                    }
                 }
             }
 
@@ -883,6 +897,28 @@ Item {
                         collectionSaveErrorDialog.errorMessage = exportResult.error;
                         collectionSaveErrorDialog.open();
                     }
+                }
+            }
+
+            FolderDialog {
+                id: collectionFolderDialog
+                title: "Choose destination folder"
+                folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+
+                onAccepted: {
+                    var copyResult = fileSystemNavigator.copyCollectionFiles(folder, result.collectionData().photos);
+                    if (copyResult.success) {
+                        collectionSaveErrorDialog.title = "Files copied";
+                        collectionSaveErrorDialog.errorMessage = "Copied " + copyResult.copiedCount +
+                            " files to:\n" + copyResult.destination;
+                    } else {
+                        collectionSaveErrorDialog.title = "Could not copy collection files";
+                        var copiedCount = Number(copyResult.copiedCount || 0);
+                        collectionSaveErrorDialog.errorMessage = (copiedCount > 0
+                            ? "Copied " + copiedCount + " files before the error.\n"
+                            : "") + copyResult.error;
+                    }
+                    collectionSaveErrorDialog.open();
                 }
             }
 
