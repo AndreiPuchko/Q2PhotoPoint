@@ -69,3 +69,19 @@ cmake --build build --config Release
 ```
 
 Replace `CMAKE_PREFIX_PATH` with the path to your Qt version and compiler kit. After building, run `Q2PhotoPoint.exe` from the build directory (or from `build\Release` when using a multi-configuration generator).
+
+## Windows distribution
+
+Run the packaging script from PowerShell:
+
+```powershell
+.\build-distribution.ps1
+```
+
+By default, the script uses Qt at `C:\Qt\6.8.3\msvc2022_64`, builds a 64-bit Release version with Visual Studio 2022, deploys the required Qt libraries and QML modules with `windeployqt`, and places the distribution in `dist\Q2PhotoPoint`. It requires a Qt 6.8+ MSVC kit with `WebEngineQuick`; the `QTDIR` environment variable is not used as the default. To use another compatible Qt kit, pass its installation directory:
+
+```powershell
+.\build-distribution.ps1 -QtRoot "D:\Qt\6.8.3\msvc2022_64"
+```
+
+The application executable will be at `dist\Q2PhotoPoint\bin\Q2PhotoPoint.exe`. The script requires CMake and the Visual Studio 2022 C++ build tools.
