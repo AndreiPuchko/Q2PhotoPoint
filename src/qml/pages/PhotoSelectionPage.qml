@@ -473,6 +473,32 @@ Item {
                 selectPhotoAt(targetIndex, false);
             }
 
+            function clearPreview() {
+                selectedPhotoIndex = -1;
+                selectedList.currentIndex = -1;
+                sources.syncSourceSelection("");
+                fullview.currentImageUrl = "";
+                fullview.currentImageHash = "";
+                fullview.currentImageStateIndex = -1;
+                fullview.rotationAngle = 0;
+                fullview.zoomFactor = 1;
+                previewFlickable.contentX = 0;
+                previewFlickable.contentY = 0;
+                pageNumberInput.text = "0";
+            }
+
+            function clearCollection() {
+                var previewWasInResult = fullviewImageInResult;
+                sources.saveCurrentImageState();
+                selectedPhotos.clear();
+                selectedPhotoIndex = -1;
+                selectedList.currentIndex = -1;
+                navigationActive = false;
+                sources.navigationActive = !previewWasInResult && fullview.currentImageUrl.toString() !== "";
+                if (previewWasInResult)
+                    clearPreview();
+            }
+
             function removePhotoAt(index) {
                 if (index < 0 || index >= selectedPhotos.count)
                     return false;
@@ -481,17 +507,7 @@ Item {
                 selectedPhotos.remove(index);
                 navigationActive = true;
                 if (selectedPhotos.count === 0) {
-                    selectedPhotoIndex = -1;
-                    selectedList.currentIndex = -1;
-                    sources.syncSourceSelection("");
-                    fullview.currentImageUrl = "";
-                    fullview.currentImageHash = "";
-                    fullview.currentImageStateIndex = -1;
-                    fullview.rotationAngle = 0;
-                    fullview.zoomFactor = 1;
-                    previewFlickable.contentX = 0;
-                    previewFlickable.contentY = 0;
-                    pageNumberInput.text = "0";
+                    clearPreview();
                 } else {
                     selectPhotoAt(Math.min(index, selectedPhotos.count - 1), false);
                 }
@@ -547,17 +563,7 @@ Item {
                 }
 
                 if (selectedPhotos.count === 0) {
-                    selectedPhotoIndex = -1;
-                    selectedList.currentIndex = -1;
-                    sources.syncSourceSelection("");
-                    fullview.currentImageUrl = "";
-                    fullview.currentImageHash = "";
-                    fullview.currentImageStateIndex = -1;
-                    fullview.rotationAngle = 0;
-                    fullview.zoomFactor = 1;
-                    previewFlickable.contentX = 0;
-                    previewFlickable.contentY = 0;
-                    pageNumberInput.text = "0";
+                    clearPreview();
                     selectedList.forceActiveFocus();
                     return;
                 }
@@ -878,6 +884,21 @@ Item {
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
                         onClicked: collectionFolderDialog.open()
+                    }
+
+                    Controls.Button {
+                        text: "Clear collection"
+                        Layout.fillWidth: true
+                        enabled: selectedPhotos.count > 0
+                        icon.width: 18
+                        icon.height: 18
+                        icon.color: "#2E39B3"
+                        Layout.preferredHeight: 32
+                        padding: 4
+                        Accessible.name: "Clear collection"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: result.clearCollection()
                     }
                 }
             }
