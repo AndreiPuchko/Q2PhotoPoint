@@ -566,6 +566,23 @@ Item {
                 selectPhotoAt(index, true);
             }
 
+            function isCollectionUrl(url) {
+                return String(url).toLowerCase().split(/[?#]/)[0].endsWith(".q2c");
+            }
+
+            function openCollectionFromUrl(url) {
+                var loadResult = fileSystemNavigator.loadCollection(url);
+                if (!loadResult.success) {
+                    collectionSaveErrorDialog.title = "Could not open collection";
+                    collectionSaveErrorDialog.errorMessage = loadResult.error;
+                    collectionSaveErrorDialog.open();
+                    return false;
+                }
+
+                applyCollection(loadResult.collection);
+                return true;
+            }
+
             function rowIndexAt(y) {
                 if (selectedPhotos.count === 0)
                     return -1;
@@ -616,9 +633,16 @@ Item {
                         id: resultDragArea
                         anchors.fill: parent
                         z: 2
-                        keys: ["application/x-q2photopoint-origin", "q2photopoint-photo"]
 
                         onEntered: function (drag) {
+                            if (drag.hasUrls) {
+                                if (selectedPhotos.count === 0 && drag.urls.length === 1 && result.isCollectionUrl(drag.urls[0]) && (drag.supportedActions & Qt.CopyAction))
+                                    drag.accept(Qt.CopyAction);
+                                else
+                                    drag.accepted = false;
+                                return;
+                            }
+
                             var origin = drag.getDataAsString("application/x-q2photopoint-origin");
                             if (origin === "result" && drag.supportedActions & Qt.MoveAction)
                                 drag.accept(Qt.MoveAction);
@@ -629,6 +653,16 @@ Item {
                         }
 
                         onDropped: function (drop) {
+                            if (drop.hasUrls) {
+                                if (selectedPhotos.count === 0 && drop.urls.length === 1 && result.isCollectionUrl(drop.urls[0])) {
+                                    result.openCollectionFromUrl(drop.urls[0]);
+                                    drop.accept(Qt.CopyAction);
+                                } else {
+                                    drop.accepted = false;
+                                }
+                                return;
+                            }
+
                             var origin = drop.getDataAsString("application/x-q2photopoint-origin");
                             if (origin === "result") {
                                 result.navigationActive = true;
@@ -872,14 +906,7 @@ Item {
                 nameFilters: ["Q2PhotoPoint Collection (*.q2c)"]
 
                 onAccepted: {
-                    var loadResult = fileSystemNavigator.loadCollection(file);
-                    if (!loadResult.success) {
-                        collectionSaveErrorDialog.title = "Could not open collection";
-                        collectionSaveErrorDialog.errorMessage = loadResult.error;
-                        collectionSaveErrorDialog.open();
-                    } else {
-                        result.applyCollection(loadResult.collection);
-                    }
+                    result.openCollectionFromUrl(file);
                 }
             }
 
@@ -1114,16 +1141,19 @@ Item {
                 if (item.kind === "folder") {
                     pendingDroppedImageUrl = "";
                     folderModel.folder = item.url;
-                    Qt.callLater(function() {
+                    Qt.callLater(function () {
                         folderList.forceActiveFocus();
                     });
                     return;
                 }
 
-                var sameFolder = normalizedLocalPath(folderModel.folder) === normalizedLocalPath(item.parentUrl);
+                var sameFolder = false;
+                if (folderModel.folder !== "")
+                    sameFolder = normalizedLocalPath(folderModel.folder) === normalizedLocalPath(item.parentUrl);
                 pendingDroppedImageUrl = item.url;
                 folderModel.folder = item.parentUrl;
-                Qt.callLater(function() {
+
+                Qt.callLater(function () {
                     folderList.forceActiveFocus();
                     if (sameFolder)
                         sources.completePendingDroppedImage();

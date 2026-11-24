@@ -10,6 +10,7 @@ Qt application for desktop platforms and Android for browsing photos and buildin
 - Zoom and rotate images; viewing state is kept in memory when switching between files.
 - Add and remove photos from the result, and reorder entries by dragging them between rows.
 - Save and open ordered selections and image viewing state as `.q2c` JSON files.
+- Drop a `.q2c` file onto an empty result list to open that collection.
 - Export the selected photos to a borderless PDF at 300 DPI, with one full-image page per photo.
 - Copy the original files in a selection to a chosen folder; existing filenames are preserved where possible, and collisions get a numbered suffix.
 - Source images already in the result are marked with a green border.
