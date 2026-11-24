@@ -399,3 +399,45 @@ QVariantMap FileSystemNavigator::copyCollectionFiles(const QUrl &destination, co
     result.insert(QStringLiteral("copiedFiles"), copiedFiles);
     return result;
 }
+
+QVariantMap FileSystemNavigator::inspectDroppedUrl(const QUrl &url) const
+{
+    QVariantMap result;
+    const auto setError = [&result](const QString &message) {
+        result.insert(QStringLiteral("success"), false);
+        result.insert(QStringLiteral("error"), message);
+    };
+
+    if (!url.isLocalFile()) {
+        setError(tr("Only local folders and image files can be opened here."));
+        return result;
+    }
+
+    const QFileInfo fileInfo(url.toLocalFile());
+    if (!fileInfo.exists() || !fileInfo.isReadable()) {
+        setError(tr("The dropped item does not exist or cannot be read."));
+        return result;
+    }
+
+    if (fileInfo.isDir()) {
+        result.insert(QStringLiteral("success"), true);
+        result.insert(QStringLiteral("kind"), QStringLiteral("folder"));
+        result.insert(QStringLiteral("url"), QUrl::fromLocalFile(fileInfo.absoluteFilePath()));
+        return result;
+    }
+
+    const QString suffix = fileInfo.suffix().toLower();
+    if (!fileInfo.isFile() ||
+        (suffix != QStringLiteral("jpg") && suffix != QStringLiteral("jpeg") &&
+         suffix != QStringLiteral("png"))) {
+        setError(tr("Drop a folder or a JPG, JPEG, or PNG image."));
+        return result;
+    }
+
+    result.insert(QStringLiteral("success"), true);
+    result.insert(QStringLiteral("kind"), QStringLiteral("image"));
+    result.insert(QStringLiteral("url"), QUrl::fromLocalFile(fileInfo.absoluteFilePath()));
+    result.insert(QStringLiteral("parentUrl"), QUrl::fromLocalFile(fileInfo.absolutePath()));
+    result.insert(QStringLiteral("fileName"), fileInfo.fileName());
+    return result;
+}

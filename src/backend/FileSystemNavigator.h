@@ -20,4 +20,5 @@ public:
     Q_INVOKABLE QVariantMap loadCollection(const QUrl &url) const;
     Q_INVOKABLE QVariantMap exportCollectionPdf(const QUrl &url, const QVariantMap &collection) const;
     Q_INVOKABLE QVariantMap copyCollectionFiles(const QUrl &destination, const QVariantList &photos) const;
+    Q_INVOKABLE QVariantMap inspectDroppedUrl(const QUrl &url) const;
 };

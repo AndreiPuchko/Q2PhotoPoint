@@ -909,14 +909,11 @@ Item {
                     var copyResult = fileSystemNavigator.copyCollectionFiles(folder, result.collectionData().photos);
                     if (copyResult.success) {
                         collectionSaveErrorDialog.title = "Files copied";
-                        collectionSaveErrorDialog.errorMessage = "Copied " + copyResult.copiedCount +
-                            " files to:\n" + copyResult.destination;
+                        collectionSaveErrorDialog.errorMessage = "Copied " + copyResult.copiedCount + " files to:\n" + copyResult.destination;
                     } else {
                         collectionSaveErrorDialog.title = "Could not copy collection files";
                         var copiedCount = Number(copyResult.copiedCount || 0);
-                        collectionSaveErrorDialog.errorMessage = (copiedCount > 0
-                            ? "Copied " + copiedCount + " files before the error.\n"
-                            : "") + copyResult.error;
+                        collectionSaveErrorDialog.errorMessage = (copiedCount > 0 ? "Copied " + copiedCount + " files before the error.\n" : "") + copyResult.error;
                     }
                     collectionSaveErrorDialog.open();
                 }
@@ -953,6 +950,7 @@ Item {
             property url selectedImageUrl: ""
             property int selectedImageIndex: -1
             property int selectedModelIndex: -1
+            property url pendingDroppedImageUrl: ""
             readonly property int navigationCount: result.navigationActive ? selectedPhotos.count : foundImageCount
             readonly property int navigationIndex: result.navigationActive ? result.selectedPhotoIndex : selectedImageIndex
 
@@ -1048,13 +1046,88 @@ Item {
                         selectedModelIndex = modelIndex;
                         folderList.currentIndex = modelIndex;
                         folderList.positionViewAtIndex(modelIndex, ListView.Contain);
-                        return;
+                        return true;
                     }
                     ++imageIndex;
                 }
                 selectedImageUrl = "";
                 selectedImageIndex = -1;
                 selectedModelIndex = -1;
+                return false;
+            }
+
+            function normalizedLocalPath(url) {
+                var parsedUrl = new URL(String(url));
+                var path = decodeURIComponent(parsedUrl.pathname);
+                if (parsedUrl.hostname)
+                    path = "//" + parsedUrl.hostname + path;
+                path = path.replace(/[\\/]+$/, "");
+                if (Qt.platform.os === "windows") {
+                    path = path.replace(/^\/([a-zA-Z]:)/, "$1");
+                    path = path.toLowerCase();
+                }
+                return path;
+            }
+
+            function selectDroppedImage(fileURL) {
+                var targetPath = normalizedLocalPath(fileURL);
+                for (var modelIndex = 0; modelIndex < folderModel.count; ++modelIndex) {
+                    if (folderModel.isFolder(modelIndex))
+                        continue;
+                    var itemUrl = folderModel.get(modelIndex, "fileURL");
+                    if (normalizedLocalPath(itemUrl) === targetPath) {
+                        result.navigationActive = false;
+                        navigationActive = true;
+                        selectImageByModelIndex(modelIndex, false);
+                        folderList.forceActiveFocus();
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function completePendingDroppedImage() {
+                if (pendingDroppedImageUrl.toString() === "" || folderModel.status !== FolderListModel.Ready)
+                    return;
+
+                var fileURL = pendingDroppedImageUrl;
+                pendingDroppedImageUrl = "";
+                if (!selectDroppedImage(fileURL)) {
+                    collectionSaveErrorDialog.title = "Could not select dropped image";
+                    collectionSaveErrorDialog.errorMessage = "The dropped image is not available in its parent folder.";
+                    collectionSaveErrorDialog.open();
+                }
+            }
+
+            function handleExternalDrop(url) {
+                var item = fileSystemNavigator.inspectDroppedUrl(url);
+                if (!item.success) {
+                    collectionSaveErrorDialog.title = "Could not open dropped item";
+                    collectionSaveErrorDialog.errorMessage = item.error;
+                    collectionSaveErrorDialog.open();
+                    return;
+                }
+                result.navigationActive = false;
+                navigationActive = true;
+                showingThisPc = false;
+
+                if (item.kind === "folder") {
+                    pendingDroppedImageUrl = "";
+                    folderModel.folder = item.url;
+                    Qt.callLater(function() {
+                        folderList.forceActiveFocus();
+                    });
+                    return;
+                }
+
+                var sameFolder = normalizedLocalPath(folderModel.folder) === normalizedLocalPath(item.parentUrl);
+                pendingDroppedImageUrl = item.url;
+                folderModel.folder = item.parentUrl;
+                Qt.callLater(function() {
+                    folderList.forceActiveFocus();
+                    if (sameFolder)
+                        sources.completePendingDroppedImage();
+                });
             }
 
             function navigateCurrentTo(index) {
@@ -1194,8 +1267,11 @@ Item {
                         sources.updateFoundImageCount();
                         if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
                             folderList.currentIndex = 0;
-                        if (!sources.showingThisPc && sources.selectedImageIndex < 0 && sources.foundImageCount > 0)
+                        if (sources.pendingDroppedImageUrl.toString() !== "") {
+                            sources.completePendingDroppedImage();
+                        } else if (!sources.showingThisPc && sources.selectedImageIndex < 0 && sources.foundImageCount > 0) {
                             sources.selectImageAt(0, false);
+                        }
                     }
                 }
 
@@ -1218,7 +1294,7 @@ Item {
                     previewFlickable.contentX = 0;
                     previewFlickable.contentY = 0;
                     sources.updateFoundImageCount();
-                    if (folderModel.status === FolderListModel.Ready)
+                    if (folderModel.status === FolderListModel.Ready && sources.pendingDroppedImageUrl.toString() === "")
                         sources.selectImageAt(0, false);
                 }
             }
@@ -1531,6 +1607,27 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            DropArea {
+                id: systemFileDropArea
+                anchors.fill: parent
+                z: 10
+
+                onEntered: function (drag) {
+                    if (drag.hasUrls && drag.urls.length > 0 && (drag.supportedActions & Qt.CopyAction))
+                        drag.accept(Qt.CopyAction);
+                    else
+                        drag.accepted = false;
+                }
+                onDropped: function (drop) {
+                    if (!drop.hasUrls || drop.urls.length === 0) {
+                        drop.accepted = false;
+                        return;
+                    }
+                    sources.handleExternalDrop(drop.urls[0]);
+                    drop.accept(Qt.CopyAction);
                 }
             }
         }

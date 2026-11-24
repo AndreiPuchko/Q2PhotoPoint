@@ -5,6 +5,7 @@ Qt application for desktop platforms and Android for browsing photos and buildin
 ## Features
 
 - Browse folders and JPG, JPEG, and PNG images.
+- Drag a folder or image from the system file manager into the source pane to open its folder and select the image.
 - Preview images with asynchronous loading and caching.
 - Zoom and rotate images; viewing state is kept in memory when switching between files.
 - Add and remove photos from the result, and reorder entries by dragging them between rows.
