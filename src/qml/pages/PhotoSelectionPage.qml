@@ -1114,6 +1114,13 @@ Item {
                     folderModel.folder = folderModel.parentFolder;
             }
 
+            function goToRootFolder() {
+                if (showingThisPc)
+                    return;
+                folderModel.folder = folderModel.rootFolder;
+                showThisPc();
+            }
+
             FileSystemNavigator {
                 id: fileSystemNavigator
             }
@@ -1215,6 +1222,20 @@ Item {
                         onClicked: sources.goToParentFolder()
                     }
 
+                    Controls.Button {
+                        text: "Root"
+                        icon.source: "home.svg"
+                        icon.width: 24
+                        icon.height: 24
+                        Layout.minimumWidth: 36
+                        Layout.preferredWidth: 36
+                        visible: !sources.showingThisPc && (sources.isWindowsDriveRoot() || folderModel.parentFolder.toString() !== folderModel.folder.toString())
+                        Accessible.name: "Go to root folder"
+                        ToolTip.text: Accessible.name
+                        ToolTip.visible: hovered
+                        onClicked: sources.goToRootFolder()
+                    }
+
                     Controls.Label {
                         text: sources.foundImageCount + " images"
                         color: "#64748b"
@@ -1300,8 +1321,12 @@ Item {
                                 fullview.rotateSelectedImage(true);
                             }
                             break;
-                        case Qt.Key_Slash:
+                        case Qt.Key_Backspace:
                             sources.goToParentFolder();
+                            folderList.forceActiveFocus();
+                            break;
+                        case Qt.Key_Slash:
+                            sources.goToRootFolder();
                             folderList.forceActiveFocus();
                             break;
                         case Qt.Key_Return:

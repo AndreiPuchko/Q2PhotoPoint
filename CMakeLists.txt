@@ -39,6 +39,7 @@ qt_add_qml_module(Q2PhotoPoint
             src/qml/pages/last.svg
             src/qml/pages/rotate.svg
             src/qml/pages/add.svg
+            src/qml/pages/home.svg
             src/qml/pages/remove.svg
             src/qml/pages/delete.svg
         NO_CACHEGEN
