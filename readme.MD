@@ -2,6 +2,8 @@
 
 Qt application for desktop platforms and Android for browsing photos and building an image selection. The interface is implemented in QML, with filesystem navigation logic in C++.
 
+![App Screenshot](assets/Screenshot.png)
+
 ## Features
 
 - Browse folders and JPG, JPEG, and PNG images.
