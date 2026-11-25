@@ -10,6 +10,7 @@ import Q2PhotoPoint
 
 Item {
     id: root
+    property int focusElement: 3
 
     SplitView {
         anchors.fill: parent
@@ -50,6 +51,9 @@ Item {
 
             color: "white"
             radius: 8
+            border.color: "#4A90E2"
+            border.width: root.focusElement === 1 ? 2 : 0
+
             property real zoomFactor: 1
             readonly property real minimumZoomFactor: 1
             readonly property real maximumZoomFactor: 8
@@ -187,6 +191,15 @@ Item {
                         text: "Select a photo to preview!"
                         color: "#94a3b8"
                         visible: fullview.currentImageUrl.toString() === ""
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        propagateComposedEvents: true
+                        onClicked: mouse => {
+                            mouse.accepted = false;
+                            parent.forceActiveFocus();
+                            root.focusElement = 1;
+                        }
                     }
                 }
 
@@ -390,6 +403,10 @@ Item {
 
             color: "white"
             radius: 8
+
+            border.color: "#4A90E2"
+            border.width: root.focusElement === 2 ? 2 : 0
+
             property bool navigationActive: false
             property int selectedPhotoIndex: -1
             readonly property bool fullviewImageInResult: photoIndex(fullview.currentImageUrl.toString(), fullview.currentImageHash) >= 0
@@ -826,6 +843,15 @@ Item {
                                 }
                             }
                         }
+                        MouseArea {
+                            anchors.fill: parent
+                            propagateComposedEvents: true
+                            onClicked: mouse => {
+                                mouse.accepted = false;
+                                parent.forceActiveFocus();
+                                root.focusElement = 2;
+                            }
+                        }
                     }
                 }
                 ColumnLayout {
@@ -989,6 +1015,9 @@ Item {
             SplitView.minimumWidth: 120
             SplitView.maximumWidth: 450
 
+            border.color: "#4A90E2"
+            border.width: root.focusElement === 3 ? 2 : 0
+
             color: "white"
             radius: 8
             property bool navigationActive: false
@@ -999,6 +1028,8 @@ Item {
             property int selectedImageIndex: -1
             property int selectedModelIndex: -1
             property url pendingDroppedImageUrl: ""
+            property int pendingFolderIndex: -1
+            property var folderIndex: ({})
             readonly property int navigationCount: result.navigationActive ? selectedPhotos.count : foundImageCount
             readonly property int navigationIndex: result.navigationActive ? result.selectedPhotoIndex : selectedImageIndex
 
@@ -1161,6 +1192,7 @@ Item {
 
                 if (item.kind === "folder") {
                     pendingDroppedImageUrl = "";
+                    pendingFolderIndex = -1;
                     folderModel.folder = item.url;
                     Qt.callLater(function () {
                         folderList.forceActiveFocus();
@@ -1268,15 +1300,20 @@ Item {
             function goToParentFolder() {
                 if (showingThisPc)
                     return;
+
                 if (isWindowsDriveRoot())
                     showThisPc();
-                else if (folderModel.parentFolder.toString() !== folderModel.folder.toString())
+                else if (folderModel.parentFolder.toString() !== folderModel.folder.toString()) {
+                    var targetFolderPath = normalizedLocalPath(folderModel.parentFolder);
+                    pendingFolderIndex = folderIndex[targetFolderPath] === undefined ? -1 : Number(folderIndex[targetFolderPath]);
                     folderModel.folder = folderModel.parentFolder;
+                }
             }
 
             function goToRootFolder() {
                 if (showingThisPc)
                     return;
+                pendingFolderIndex = -1;
                 folderModel.folder = folderModel.rootFolder;
                 showThisPc();
             }
@@ -1316,12 +1353,20 @@ Item {
                 function onStatusChanged() {
                     if (folderModel.status === FolderListModel.Ready) {
                         sources.updateFoundImageCount();
-                        if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
-                            folderList.currentIndex = 0;
-                        if (sources.pendingDroppedImageUrl.toString() !== "") {
+                        if (sources.pendingFolderIndex >= 0) {
+                            var index = sources.pendingFolderIndex;
+                            sources.pendingFolderIndex = -1;
+                            if (index < folderModel.count) {
+                                folderList.currentIndex = index;
+                                folderList.positionViewAtIndex(index, ListView.Contain);
+                            }
+                        } else if (sources.pendingDroppedImageUrl.toString() !== "") {
                             sources.completePendingDroppedImage();
-                        } else if (!sources.showingThisPc && sources.selectedImageIndex < 0 && sources.foundImageCount > 0) {
-                            sources.selectImageAt(0, false);
+                        } else {
+                            if (folderList.activeFocus && folderList.currentIndex < 0 && folderModel.count > 0)
+                                folderList.currentIndex = 0;
+                            if (!sources.showingThisPc && sources.selectedImageIndex < 0 && sources.foundImageCount > 0)
+                                sources.selectImageAt(0, false);
                         }
                     }
                 }
@@ -1345,7 +1390,7 @@ Item {
                     previewFlickable.contentX = 0;
                     previewFlickable.contentY = 0;
                     sources.updateFoundImageCount();
-                    if (folderModel.status === FolderListModel.Ready && sources.pendingDroppedImageUrl.toString() === "")
+                    if (folderModel.status === FolderListModel.Ready && sources.pendingDroppedImageUrl.toString() === "" && sources.pendingFolderIndex < 0)
                         sources.selectImageAt(0, false);
                 }
             }
@@ -1585,7 +1630,7 @@ Item {
                                         height: fileItem.isRotated ? parent.width - 4 : parent.height - 4
                                         x: (parent.width - width) / 2
                                         y: (parent.height - height) / 2
-                                        source: sources.showingThisPc ? "" : fileItem.fileURL
+                                        source: !visible ? "" : fileItem.fileURL
                                         asynchronous: true
                                         cache: true
                                         sourceSize.width: width
@@ -1643,8 +1688,12 @@ Item {
                                 folderList.forceActiveFocus();
                                 if (sources.showingThisPc) {
                                     sources.showingThisPc = false;
+                                    sources.pendingFolderIndex = -1;
                                     folderModel.folder = fileItem.fileURL;
                                 } else if (folderModel.isFolder(fileItem.index)) {
+                                    const ndex = fileItem.index;
+                                    sources.folderIndex[sources.normalizedLocalPath(folderModel.folder)] = ndex;
+                                    sources.pendingFolderIndex = -1;
                                     folderModel.folder = fileItem.fileURL;
                                 } else {
                                     sources.selectImageByModelIndex(fileItem.index, false);
@@ -1656,6 +1705,15 @@ Item {
                                     result.addPhoto(fileItem.fileURL, fileItem.fileName, fileItem.imageHash, undefined, true);
                                 }
                             }
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        propagateComposedEvents: true
+                        onClicked: mouse => {
+                            mouse.accepted = false;
+                            parent.forceActiveFocus();
+                            root.focusElement = 3;
                         }
                     }
                 }
