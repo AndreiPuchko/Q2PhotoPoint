@@ -713,7 +713,7 @@ Item {
                             if (count === 0)
                                 return;
                             currentIndex = Math.max(0, Math.min(count - 1, currentIndex < 0 ? 0 : currentIndex + delta));
-                            positionViewAtIndex(currentIndex, ListView.Contain);
+                            positionViewAtIndex(currentIndex, ListView.Center);
                             result.selectPhotoAt(currentIndex, false);
                         }
 
@@ -1008,7 +1008,7 @@ Item {
             }
         }
 
-        // Current folder
+        // Source photos
         Rectangle {
             id: sources
             SplitView.preferredWidth: 240
@@ -1124,7 +1124,7 @@ Item {
                         selectedImageIndex = imageIndex;
                         selectedModelIndex = modelIndex;
                         folderList.currentIndex = modelIndex;
-                        folderList.positionViewAtIndex(modelIndex, ListView.Contain);
+                        folderList.positionViewAtIndex(modelIndex, ListView.Center);
                         return true;
                     }
                     ++imageIndex;
@@ -1256,7 +1256,7 @@ Item {
                 selectedImageUrl = folderModel.get(modelIndex, "fileURL");
                 showImageInPreview(selectedImageUrl);
                 pageNumberInput.text = String(imageIndex + 1);
-                folderList.positionViewAtIndex(modelIndex, ListView.Contain);
+                folderList.positionViewAtIndex(modelIndex, ListView.Center);
                 if (focusPreview !== false)
                     previewFlickable.forceActiveFocus();
                 Qt.callLater(restoreCurrentImagePosition);
@@ -1290,7 +1290,12 @@ Item {
                 fullview.rotationAngle = 0;
                 fullview.zoomFactor = 1;
                 foundImageCount = 0;
-                folderList.currentIndex = thisPcModel.count > 0 ? 0 : -1;
+                if (sources.folderIndex["root"] !== undefined) {
+                    folderList.currentIndex = sources.folderIndex["root"];
+                } else {
+                    folderList.currentIndex = thisPcModel.count > 0 ? 0 : -1;
+                }
+                folderList.forceActiveFocus();
             }
 
             function isWindowsDriveRoot() {
@@ -1300,22 +1305,38 @@ Item {
             function goToParentFolder() {
                 if (showingThisPc)
                     return;
-
                 if (isWindowsDriveRoot())
                     showThisPc();
                 else if (folderModel.parentFolder.toString() !== folderModel.folder.toString()) {
-                    var targetFolderPath = normalizedLocalPath(folderModel.parentFolder);
+                    const targetFolderPath = normalizedLocalPath(folderModel.parentFolder);
                     pendingFolderIndex = folderIndex[targetFolderPath] === undefined ? -1 : Number(folderIndex[targetFolderPath]);
                     folderModel.folder = folderModel.parentFolder;
                 }
+                folderList.forceActiveFocus();
             }
 
             function goToRootFolder() {
                 if (showingThisPc)
                     return;
-                pendingFolderIndex = -1;
-                folderModel.folder = folderModel.rootFolder;
                 showThisPc();
+                folderList.forceActiveFocus();
+            }
+
+            function selectSourceItem(fileURL) {
+                if (sources.showingThisPc) {
+                    sources.folderIndex["root"] = folderList.currentIndex;
+                    sources.showingThisPc = false;
+                    sources.pendingFolderIndex = -1;
+                    folderModel.folder = fileURL;
+                } else if (folderModel.isFolder(folderList.currentIndex)) {
+                    const ndex = folderList.currentIndex;
+                    // sources.folderIndex[sources.normalizedLocalPath(folderModel.folder)] = ndex;
+                    sources.pendingFolderIndex = -1;
+                    folderModel.folder = fileURL;
+                } else {
+                    // sources.folderIndex[folderModel.folder] = folderList.currentIndex;
+                    sources.selectImageByModelIndex(folderList.currentIndex, false);
+                }
             }
 
             FileSystemNavigator {
@@ -1333,6 +1354,15 @@ Item {
                 showOnlyReadable: true
                 caseSensitive: false
                 sortField: FolderListModel.Name
+                Component.onCompleted: {
+                    let startUrl = StandardPaths.writableLocation(StandardPaths.PicturesLocation).toString();
+                    if (Qt.platform.os === "windows") {
+                        startUrl = startUrl.replace(/^(file:\/\/\/)([A-Z]):/, function (match, prefix, drive) {
+                            return prefix + drive.toLowerCase() + ":";
+                        });
+                    }
+                    folder = startUrl;
+                }
             }
 
             ListModel {
@@ -1354,11 +1384,11 @@ Item {
                     if (folderModel.status === FolderListModel.Ready) {
                         sources.updateFoundImageCount();
                         if (sources.pendingFolderIndex >= 0) {
-                            var index = sources.pendingFolderIndex;
+                            const index = sources.pendingFolderIndex;
                             sources.pendingFolderIndex = -1;
                             if (index < folderModel.count) {
                                 folderList.currentIndex = index;
-                                folderList.positionViewAtIndex(index, ListView.Contain);
+                                folderList.positionViewAtIndex(index, ListView.Center);
                             }
                         } else if (sources.pendingDroppedImageUrl.toString() !== "") {
                             sources.completePendingDroppedImage();
@@ -1383,7 +1413,13 @@ Item {
                     fullview.currentImageUrl = "";
                     fullview.currentImageHash = "";
                     fullview.currentImageStateIndex = -1;
-                    folderList.currentIndex = -1;
+                    if (sources.folderIndex[folderModel.folder] !== undefined) {
+                        sources.pendingFolderIndex = sources.folderIndex[folderModel.folder];
+                        sources.selectedImageIndex = sources.pendingFolderIndex;
+                        folderList.moveCurrentIndexTo(sources.pendingFolderIndex);
+                    } else {
+                        folderList.currentIndex = -1;
+                    }
                     pageNumberInput.text = "0";
                     fullview.rotationAngle = 0;
                     fullview.zoomFactor = 1;
@@ -1472,13 +1508,17 @@ Item {
                     currentIndex: -1
                     activeFocusOnTab: true
 
+                    onCurrentIndexChanged: {
+                        sources.folderIndex[folderModel.folder] = currentIndex;
+                    }
+
                     function moveCurrentIndexTo(index) {
                         if (count === 0)
                             return;
 
                         var nextIndex = Math.max(0, Math.min(count - 1, index));
                         currentIndex = nextIndex;
-                        positionViewAtIndex(nextIndex, ListView.Contain);
+                        positionViewAtIndex(nextIndex, ListView.Center);
                         if (!sources.showingThisPc && !folderModel.isFolder(nextIndex))
                             sources.selectImageByModelIndex(nextIndex, false);
                     }
@@ -1541,15 +1581,14 @@ Item {
                         case Qt.Key_Enter:
                             if (folderList.currentIndex >= 0) {
                                 if (sources.showingThisPc) {
-                                    var drive = thisPcModel.get(folderList.currentIndex);
-                                    sources.showingThisPc = false;
-                                    folderModel.folder = drive.fileURL;
+                                    const drive = thisPcModel.get(folderList.currentIndex);
+                                    sources.selectSourceItem(drive.fileURL);
                                 } else if (folderModel.isFolder(folderList.currentIndex)) {
-                                    folderModel.folder = folderModel.get(folderList.currentIndex, "fileURL");
+                                    sources.selectSourceItem(folderModel.get(folderList.currentIndex, "fileURL"));
                                 } else {
-                                    var imageURL = folderModel.get(folderList.currentIndex, "fileURL");
-                                    var imageName = folderModel.get(folderList.currentIndex, "fileName");
-                                    var imageHash = fileSystemNavigator.imageStateHash(imageURL);
+                                    const imageURL = folderModel.get(folderList.currentIndex, "fileURL");
+                                    const imageName = folderModel.get(folderList.currentIndex, "fileName");
+                                    const imageHash = fileSystemNavigator.imageStateHash(imageURL);
                                     result.addPhoto(imageURL, imageName, imageHash, undefined, false);
                                 }
                             }
@@ -1559,9 +1598,9 @@ Item {
                             if (event.key === Qt.Key_Plus || event.text === "+") {
                                 if (sources.showingThisPc || folderList.currentIndex < 0 || folderModel.isFolder(folderList.currentIndex))
                                     break;
-                                var imageURL = folderModel.get(folderList.currentIndex, "fileURL");
-                                var imageName = folderModel.get(folderList.currentIndex, "fileName");
-                                var imageHash = fileSystemNavigator.imageStateHash(imageURL);
+                                const imageURL = folderModel.get(folderList.currentIndex, "fileURL");
+                                const imageName = folderModel.get(folderList.currentIndex, "fileName");
+                                const imageHash = fileSystemNavigator.imageStateHash(imageURL);
                                 result.addPhoto(imageURL, imageName, imageHash, undefined, false);
                             } else {
                                 handled = false;
@@ -1611,7 +1650,7 @@ Item {
                         Rectangle {
                             anchors.fill: parent
                             radius: 4
-                            border.width: fileItem.isSelectedImage ? 2 : folderList.activeFocus && folderList.currentIndex === fileItem.index ? 1 : 0
+                            border.width: fileItem.isSelectedImage ? 2 : folderList.activeFocus && folderList.currentIndex === fileItem.index ? 2 : 0
                             border.color: fileItem.isSelectedImage ? "#1976d2" : "#64748b"
                             color: sources.showingThisPc || folderModel.isFolder(fileItem.index) ? "#f1f5f9" : "#e2e8f0"
 
@@ -1686,18 +1725,7 @@ Item {
                             onClicked: {
                                 folderList.currentIndex = fileItem.index;
                                 folderList.forceActiveFocus();
-                                if (sources.showingThisPc) {
-                                    sources.showingThisPc = false;
-                                    sources.pendingFolderIndex = -1;
-                                    folderModel.folder = fileItem.fileURL;
-                                } else if (folderModel.isFolder(fileItem.index)) {
-                                    const ndex = fileItem.index;
-                                    sources.folderIndex[sources.normalizedLocalPath(folderModel.folder)] = ndex;
-                                    sources.pendingFolderIndex = -1;
-                                    folderModel.folder = fileItem.fileURL;
-                                } else {
-                                    sources.selectImageByModelIndex(fileItem.index, false);
-                                }
+                                sources.selectSourceItem(fileItem.fileURL);
                             }
                             onDoubleClicked: {
                                 if (!sources.showingThisPc && !folderModel.isFolder(fileItem.index)) {
