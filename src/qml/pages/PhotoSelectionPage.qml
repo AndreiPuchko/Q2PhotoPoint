@@ -1463,7 +1463,12 @@ Item {
                         Accessible.name: "Go to parent folder"
                         ToolTip.text: Accessible.name
                         ToolTip.visible: hovered
-                        onClicked: sources.goToParentFolder()
+                        onClicked: {
+                            if (folderModel.status !== FolderListModel.Ready) {
+                                return;
+                            }
+                            sources.goToParentFolder();
+                        }
                     }
 
                     Controls.Button {
@@ -1570,6 +1575,9 @@ Item {
                             }
                             break;
                         case Qt.Key_Backspace:
+                            if (folderModel.status !== FolderListModel.Ready) {
+                                return;
+                            }
                             sources.goToParentFolder();
                             folderList.forceActiveFocus();
                             break;
