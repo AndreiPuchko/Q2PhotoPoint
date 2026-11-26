@@ -1276,6 +1276,7 @@ Item {
             function showThisPc() {
                 saveCurrentImageState();
                 thisPcModel.clear();
+                folderModel.folder = ""
                 var drives = fileSystemNavigator.availableWindowsDrives();
                 for (var i = 0; i < drives.length; ++i)
                     thisPcModel.append(drives[i]);
